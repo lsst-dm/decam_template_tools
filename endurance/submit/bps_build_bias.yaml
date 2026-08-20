@@ -1,0 +1,79 @@
+year: "2013"
+range: "AND (day_obs > 20130000) AND (day_obs < 20140000)"
+
+# year: "2014"
+# range: "AND (day_obs > 20140000) AND (day_obs < 20150000)"
+
+# year: "2016"
+# range: "AND (day_obs > 20160000) AND (day_obs < 20170000)"
+
+# year: "2017"
+# range: "AND (day_obs > 20170000) AND (day_obs < 20180000)"
+
+# year: "2018"
+# range: "AND (day_obs > 20180000) AND (day_obs < 20190000)"
+
+# UPDATE THIS to the path to the pipeline to run
+pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpBias.yaml"
+
+clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
+cluster:
+ cp_bias_isr:
+   pipetasks: cpBiasIsr
+   dimensions: detector
+   partitionDimensions: exposure
+   partitionMaxClusters: 1000
+
+# Just names, but UPDATE THIS AND KEEP THEM SHORT
+project: "DECam Templates"
+campaign: "Build {year} Bias"
+
+payload:
+  payloadName: "test"
+  # payloadName: "DECam/calib/ELAIS_pilot/{year}"
+  butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
+  inCollection: DECam/raw/all,DECam/calib
+  dataQuery: "instrument='DECam' {range}"
+
+extraQgraphOptions: "--dataset-query-constraint off --register-dataset-types"
+
+computeSite: "local"
+wmsServiceClass: lsst.ctrl.bps.parsl.ParslService
+
+parsl:
+  log_level: INFO
+
+site:
+  local:
+    class: lsst.ctrl.bps.parsl.sites.Local
+    cores: 8
+  triple_slurm:
+    class: lsst.ctrl.bps.parsl.sites.TripleSlurm
+    nodes: 1
+    cores_per_node: 100
+    qos: normal
+    small_memory: 2.0     # Units are GB
+    medium_memory: 4.0
+    large_memory: 8.0
+    small_walltime: 10.0   # Units are hours
+    medium_walltime: 10.0
+    large_walltime: 40.0
+    monitorEnable: true
+    monitorFilename: runinfo/monitoring.db
+  task_vine:
+    class: bps_parsl_sites.SlurmTaskVine
+    walltime: "00:30:00"
+    qos: regular
+    constraint: cpu
+    exclusive: true
+    nodes_per_block: 1
+    provider_options:
+      init_blocks: 1
+      min_blocks: 0
+      max_blocks: 1
+    scheduler_options: |
+      #SBATCH --module=cvmfs
+      #SBATCH --account=m1727
+    worker_options: "--memory=480000"  # total memory in MB
+    monitorEnable: true
+    monitorFilename: runinfo/monitoring.db
