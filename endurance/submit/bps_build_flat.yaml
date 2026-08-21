@@ -44,11 +44,11 @@ pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpFlat.yaml"
 
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
 cluster:
- cp_bias_isr:
-   pipetasks: cpFlatIsr
-   dimensions: detector
-   partitionDimensions: exposure
-   partitionMaxClusters: 1000
+  cp_flat_isr:
+    pipetasks: cpFlatIsr,cpFlatMeasure
+    dimensions: detector
+    partitionDimensions: exposure
+    partitionMaxClusters: 1000
 
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
 project: "DECam Templates"
@@ -58,7 +58,7 @@ payload:
   payloadName: "DECam/calib/ELAIS_pilot/flat/{year}/{band}_band"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
   inCollection: DECam/raw/all,DECam/calib
-  dataQuery: "instrument='DECam' {range}"
+  dataQuery: "instrument='DECam' {range} AND band={band}"
 
 extraQgraphOptions: "--dataset-query-constraint off"
 
