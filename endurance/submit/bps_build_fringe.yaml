@@ -1,30 +1,31 @@
+band: "z" # Options: g, r, i, and z
 year: "2013" # Options: 2013-2026, except 2015
 
 # Update the year in each dayobs, first is year, second is year + 1
 range: "AND (day_obs > 20130000) AND (day_obs < 20140000)"
 
 # UPDATE THIS to the path to the pipeline to run
-pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpBias.yaml"
+pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpFringe.yaml"
 
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
 project: "DECam Templates"
-campaign: "{year} Bias"
+campaign: "{year} {band}-band Fringe"
 
 payload:
-  payloadName: "DECam/calib/ELAIS_pilot/bias/{year}"
+  payloadName: "DECam/calib/ELAIS_pilot/fringe/{year}/{band}_band"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
-  inCollection: DECam/raw/all,DECam/calib
-  dataQuery: "instrument='DECam' {range}"
+  inCollection: DECam/raw/all,DECam/calib,DECam/calib/ELAIS_pilot/flat/{year}/{band}_band
+  dataQuery: "instrument='DECam' {range} AND band={band}"
 
 extraQgraphOptions: "--dataset-query-constraint off"
 
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
 cluster:
- cp_bias_isr:
-   pipetasks: cpBiasIsr
-   dimensions: detector
-   partitionDimensions: exposure
-   partitionMaxClusters: 1000
+  cp_fringe_isr:
+    pipetasks: cpFringeIsr,cpFringeMeasure
+    dimensions: detector
+    partitionDimensions: exposure
+    partitionMaxClusters: 1000
 
 computeSite: "local"
 wmsServiceClass: lsst.ctrl.bps.parsl.ParslService

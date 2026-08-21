@@ -1,30 +1,33 @@
 year: "2013" # Options: 2013-2026, except 2015
 
-# Update the year in each dayobs, first is year, second is year + 1
-range: "AND (day_obs > 20130000) AND (day_obs < 20140000)"
+FLATEXPS: ""
+SCIEXPS: ""
 
 # UPDATE THIS to the path to the pipeline to run
-pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpBias.yaml"
+pipelineYaml: $DRP_PIPE_DIR/pipelines/DECam/DRP-Merian.yaml#step0 # First step
+# pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpCrosstalk.yaml" # Second step
 
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
 project: "DECam Templates"
-campaign: "{year} Bias"
+campaign: "{year} Crosstalk"
 
 payload:
-  payloadName: "DECam/calib/ELAIS_pilot/bias/{year}"
+  payloadName: "DECam/calib/ELAIS_pilot/crosstalk/{year}"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
-  inCollection: DECam/raw/all,DECam/calib
-  dataQuery: "instrument='DECam' {range}"
+  inCollection: DECam/raw/all,DECam/calib,DECam/calib/ELAIS_pilot/bias/{year}
+  dataQuery: "instrument='DECam' AND exposure IN {FLATEXPS}" # First step
+  # dataQuery: "instrument='DECam' AND exposure IN {SCIEXPS}" # Second step
 
 extraQgraphOptions: "--dataset-query-constraint off"
 
-clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
-cluster:
- cp_bias_isr:
-   pipetasks: cpBiasIsr
-   dimensions: detector
-   partitionDimensions: exposure
-   partitionMaxClusters: 1000
+# Second step
+# clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
+# cluster:
+ # cp_crosstalk_isr:
+ #   pipetasks: cpCrosstalkIsr,cpCrosstalkExtract
+ #   dimensions: detector
+ #   partitionDimensions: exposure
+ #   partitionMaxClusters: 1000
 
 computeSite: "local"
 wmsServiceClass: lsst.ctrl.bps.parsl.ParslService

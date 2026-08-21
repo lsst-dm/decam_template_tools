@@ -1,46 +1,23 @@
-band: "g"
+band: "g" # Options: g, r, i, and z
+year: "2013" # Options: 2013-2026, except 2015
 
-year: "2013"
+# Update the year in each dayobs, first is year, second is year + 1
 range: "AND (day_obs > 20130000) AND (day_obs < 20140000)"
-
-# year: "2014"
-# range: "AND (day_obs > 20140000) AND (day_obs < 20150000)"
-
-# year: "2016"
-# range: "AND (day_obs > 20160000) AND (day_obs < 20170000)"
-
-# year: "2017"
-# range: "AND (day_obs > 20170000) AND (day_obs < 20180000)"
-
-# year: "2018"
-# range: "AND (day_obs > 20180000) AND (day_obs < 20190000)"
-
-# year: "2019"
-# range: "AND (day_obs > 20190000) AND (day_obs < 20200000)"
-
-# year: "2020"
-# range: "AND (day_obs > 20200000) AND (day_obs < 20210000)"
-
-# year: "2021"
-# range: "AND (day_obs > 20210000) AND (day_obs < 20220000)"
-
-# year: "2022"
-# range: "AND (day_obs > 20220000) AND (day_obs < 20230000)"
-
-# year: "2023"
-# range: "AND (day_obs > 20230000) AND (day_obs < 20240000)"
-
-# year: "2024"
-# range: "AND (day_obs > 20240000) AND (day_obs < 20250000)"
-
-# year: "2025"
-# range: "AND (day_obs > 20250000) AND (day_obs < 20260000)"
-
-# year: "2026"
-# range: "AND (day_obs > 20260000) AND (day_obs < 20270000)"
 
 # UPDATE THIS to the path to the pipeline to run
 pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpFlat.yaml"
+
+# Just names, but UPDATE THIS AND KEEP THEM SHORT
+project: "DECam Templates"
+campaign: "{year} {band}-band Flat"
+
+payload:
+  payloadName: "DECam/calib/ELAIS_pilot/flat/{year}/{band}_band"
+  butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
+  inCollection: DECam/raw/all,DECam/calib,DECam/calib/ELAIS_pilot/bias/{year} # ,DECam/calib/ELAIS_pilot/crosstalk/{year}
+  dataQuery: "instrument='DECam' {range} AND band={band}"
+
+extraQgraphOptions: "--dataset-query-constraint off"
 
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
 cluster:
@@ -49,18 +26,6 @@ cluster:
     dimensions: detector
     partitionDimensions: exposure
     partitionMaxClusters: 1000
-
-# Just names, but UPDATE THIS AND KEEP THEM SHORT
-project: "DECam Templates"
-campaign: "Build {year} {band}-band Flat"
-
-payload:
-  payloadName: "DECam/calib/ELAIS_pilot/flat/{year}/{band}_band"
-  butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
-  inCollection: DECam/raw/all,DECam/calib
-  dataQuery: "instrument='DECam' {range} AND band={band}"
-
-extraQgraphOptions: "--dataset-query-constraint off"
 
 computeSite: "local"
 wmsServiceClass: lsst.ctrl.bps.parsl.ParslService
