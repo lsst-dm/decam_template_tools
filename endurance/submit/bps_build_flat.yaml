@@ -1,3 +1,5 @@
+band: "g"
+
 year: "2013"
 range: "AND (day_obs > 20130000) AND (day_obs < 20140000)"
 
@@ -38,22 +40,22 @@ range: "AND (day_obs > 20130000) AND (day_obs < 20140000)"
 # range: "AND (day_obs > 20260000) AND (day_obs < 20270000)"
 
 # UPDATE THIS to the path to the pipeline to run
-pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpBias.yaml"
+pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpFlat.yaml"
 
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
 cluster:
  cp_bias_isr:
-   pipetasks: cpBiasIsr
+   pipetasks: cpFlatIsr
    dimensions: detector
    partitionDimensions: exposure
    partitionMaxClusters: 1000
 
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
 project: "DECam Templates"
-campaign: "Build {year} Bias"
+campaign: "Build {year} {band}-band Flat"
 
 payload:
-  payloadName: "DECam/calib/ELAIS_pilot/bias/{year}"
+  payloadName: "DECam/calib/ELAIS_pilot/flat/{year}/{band}_band"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
   inCollection: DECam/raw/all,DECam/calib
   dataQuery: "instrument='DECam' {range}"
