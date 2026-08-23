@@ -1,20 +1,20 @@
-year: "2013" # Options: 2013-2026, except 2015
+year: "2018" # Options: 2013-2026, except 2015
 
 # Update the year in each dayobs, first is year, second is year + 1
-range: "AND (day_obs > 20130000) AND (day_obs < 20140000)"
+range: "AND (day_obs > 20180000) AND (day_obs < 20190000)"
 
 # UPDATE THIS to the path to the pipeline to run
 pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpBias.yaml"
 
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
-project: "DECam Templates"
-campaign: "{year} Bias"
+project: "DECam_Templates"
+campaign: "{year}_Bias"
 
 payload:
   payloadName: "DECam/calib/ELAIS_pilot/bias/{year}"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
   inCollection: DECam/raw/all,DECam/calib
-  dataQuery: "instrument='DECam' {range}"
+  dataQuery: "instrument='DECam' {range} AND exposure.observation_type='zero'"
 
 extraQgraphOptions: "--dataset-query-constraint off"
 
@@ -26,7 +26,14 @@ cluster:
    partitionDimensions: exposure
    partitionMaxClusters: 1000
 
-computeSite: "local"
+# cpBiasCombine stacks 236 exposures per detector. At the 2 GB global default all
+# 62 quanta land on one node together and each takes ~27 min; giving it real memory
+# lets TaskVine pack ~14 at a time and each finishes far faster.
+pipetask:
+  cpBiasCombine:
+    requestMemory: 32768
+
+computeSite: "task_vine"
 wmsServiceClass: lsst.ctrl.bps.parsl.ParslService
 
 parsl:
@@ -51,7 +58,7 @@ site:
     monitorFilename: runinfo/monitoring.db
   task_vine:
     class: bps_parsl_sites.SlurmTaskVine
-    walltime: "00:30:00"
+    walltime: "04:00:00"
     qos: regular
     constraint: cpu
     exclusive: true
