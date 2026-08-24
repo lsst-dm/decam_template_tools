@@ -1,21 +1,21 @@
-band: "g" # Options: g, r, i, and z
-year: "2013" # Options: 2013-2026, except 2015
+band: "z" # Options: g, r, i, and z
+year: "2018" # Options: 2013-2026, except 2015
 
 # Update the year in each dayobs, first is year, second is year + 1
-range: "AND (day_obs > 20130000) AND (day_obs < 20140000)"
+range: "AND (day_obs > 20180000) AND (day_obs < 20190000)"
 
 # UPDATE THIS to the path to the pipeline to run
 pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpFlat.yaml"
 
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
-project: "DECam Templates"
-campaign: "{year} {band}-band Flat"
+project: "DECam_Templates"
+campaign: "{year}_{band}-band_Flat"
 
 payload:
   payloadName: "DECam/calib/ELAIS_pilot/flat/{year}/{band}_band"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
-  inCollection: DECam/raw/all,DECam/calib,DECam/calib/ELAIS_pilot/bias/{year} # ,DECam/calib/ELAIS_pilot/crosstalk/{year}
-  dataQuery: "instrument='DECam' {range} AND band={band}"
+  inCollection: DECam/raw/all,DECam/calib,u/seanmacb/DECam/calib/ELAIS_pilot # ,DECam/calib/ELAIS_pilot/crosstalk/{year}
+  dataQuery: "instrument='DECam' {range} AND band='{band}' AND exposure.observation_type='dome flat'"
 
 extraQgraphOptions: "--dataset-query-constraint off"
 
@@ -27,7 +27,14 @@ cluster:
     partitionDimensions: exposure
     partitionMaxClusters: 1000
 
-computeSite: "local"
+# cpFlatCombine stacks every flat for a detector/filter. The 2 GB global
+# default packs all 62 onto one node at once; see cpBiasCombine in
+# bps_build_bias.yaml, where that caused a ~27 min per-quantum runtime.
+pipetask:
+  cpFlatCombine:
+    requestMemory: 32768
+
+computeSite: "task_vine"
 wmsServiceClass: lsst.ctrl.bps.parsl.ParslService
 
 parsl:
@@ -52,7 +59,7 @@ site:
     monitorFilename: runinfo/monitoring.db
   task_vine:
     class: bps_parsl_sites.SlurmTaskVine
-    walltime: "00:30:00"
+    walltime: "04:00:00"
     qos: regular
     constraint: cpu
     exclusive: true

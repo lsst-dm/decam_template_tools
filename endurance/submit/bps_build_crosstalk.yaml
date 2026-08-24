@@ -8,8 +8,8 @@ pipelineYaml: $DRP_PIPE_DIR/pipelines/DECam/DRP-Merian.yaml#step0 # First step
 # pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpCrosstalk.yaml" # Second step
 
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
-project: "DECam Templates"
-campaign: "{year} Crosstalk"
+project: "DECam_Templates"
+campaign: "{year}_Crosstalk"
 
 payload:
   payloadName: "DECam/calib/ELAIS_pilot/crosstalk/{year}"
@@ -29,7 +29,14 @@ extraQgraphOptions: "--dataset-query-constraint off"
  #   partitionDimensions: exposure
  #   partitionMaxClusters: 1000
 
-computeSite: "local"
+# cpCrosstalkSolve aggregates every extraction, so it is the memory-hungry
+# step here. Inert while pipelineYaml points at DRP-Merian#step0; it applies
+# once the cpCrosstalk.yaml second step is uncommented above.
+pipetask:
+  cpCrosstalkSolve:
+    requestMemory: 32768
+
+computeSite: "task_vine"
 wmsServiceClass: lsst.ctrl.bps.parsl.ParslService
 
 parsl:
@@ -54,7 +61,7 @@ site:
     monitorFilename: runinfo/monitoring.db
   task_vine:
     class: bps_parsl_sites.SlurmTaskVine
-    walltime: "00:30:00"
+    walltime: "04:00:00"
     qos: regular
     constraint: cpu
     exclusive: true
