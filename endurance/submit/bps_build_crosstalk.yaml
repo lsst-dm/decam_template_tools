@@ -1,24 +1,32 @@
-year: "2013" # Options: 2013-2026, except 2015
-
-FLATEXPS: ""
-SCIEXPS: ""
-
 # UPDATE THIS to the path to the pipeline to run
-pipelineYaml: $DRP_PIPE_DIR/pipelines/DECam/DRP-Merian.yaml#step0 # First step
+# This step produces the overscanRaws
+pipelineYaml: /global/homes/s/seanmacb/decam_template_tools/endurance/submit/crosstalkISR.yaml # First step for flat and science frame
+
+# step 2
+# This step produces crosstalk calib solutions
 # pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpCrosstalk.yaml" # Second step
 
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
 project: "DECam_Templates"
-campaign: "{year}_Crosstalk"
+campaign: "Crosstalk_step1"
 
 payload:
-  payloadName: "DECam/calib/ELAIS_pilot/crosstalk/{year}"
+  payloadName: "DECam/calib/ELAIS_pilot/crosstalk"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
-  inCollection: DECam/raw/all,DECam/calib,DECam/calib/ELAIS_pilot/bias/{year}
-  dataQuery: "instrument='DECam' AND exposure IN {FLATEXPS}" # First step
-  # dataQuery: "instrument='DECam' AND exposure IN {SCIEXPS}" # Second step
+  inCollection: DECam/raw/all,DECam/calib,DECam/calib/ELAIS_pilot/bias
+  dataQuery: "instrument='DECam' AND exposure.observation_type IN ('dome flat','science')"
 
 extraQgraphOptions: "--dataset-query-constraint off"
+
+
+# First step
+clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
+cluster:
+  step0:
+    pipetasks: isrForCrosstalkSources
+    dimensions: detector
+    partitionDimensions: exposure
+    partitionMaxClusters: 1000
 
 # Second step
 # clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
@@ -32,6 +40,7 @@ extraQgraphOptions: "--dataset-query-constraint off"
 # cpCrosstalkSolve aggregates every extraction, so it is the memory-hungry
 # step here. Inert while pipelineYaml points at DRP-Merian#step0; it applies
 # once the cpCrosstalk.yaml second step is uncommented above.
+
 pipetask:
   cpCrosstalkSolve:
     requestMemory: 32768
