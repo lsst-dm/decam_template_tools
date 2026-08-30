@@ -1,7 +1,7 @@
-year: "2018" # Options: 2013-2026, except 2015
+year: "2016" # Options: 2013-2026, except 2015
 
 # Update the year in each dayobs, first is year, second is year + 1
-range: "AND (day_obs > 20180000) AND (day_obs < 20190000)"
+range: "AND (day_obs > 20160000) AND (day_obs < 20170000)"
 
 # UPDATE THIS to the path to the pipeline to run
 pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpBias.yaml"
@@ -14,7 +14,7 @@ payload:
   payloadName: "DECam/calib/ELAIS_pilot/bias/{year}"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
   inCollection: DECam/raw/all,DECam/calib
-  dataQuery: "instrument='DECam' {range} AND exposure.observation_type='zero'"
+  dataQuery: "instrument='DECam' {range} AND exposure.observation_type='zero' AND exposure NOT IN (558294,581640,558395)" # Added the last query to remove some bad fits files that probably ingested incorrectly
 
 extraQgraphOptions: "--dataset-query-constraint off"
 
