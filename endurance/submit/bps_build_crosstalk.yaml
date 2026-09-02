@@ -4,17 +4,17 @@
 
 # step 2
 # This step produces crosstalk calib solutions
-pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpCrosstalk.yaml#cpCrosstalk" # Second step
+pipelineYaml: "/global/homes/s/seanmacb/decam_template_tools/endurance/submit/crosstalkStepFinal.yaml" # Second step
 
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
 project: "DECam_Templates"
 campaign: "Crosstalk_step2"
 
 payload:
-  payloadName: "DECam/calib/ELAIS_pilot/crosstalk"
+  payloadName: "DECam/calib/ELAIS_pilot/crosstalkSolutions"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
-  inCollection: DECam/raw/all,DECam/calib,DECam/calib/ELAIS_pilot/bias
-  dataQuery: "instrument='DECam' AND exposure.observation_type IN ('dome flat','science')"
+  inCollection: DECam/raw/all,DECam/calib,DECam/calib/ELAIS_pilot/bias,u/seanmacb/DECam/calib/ELAIS_pilot/crosstalk/20260830T141946Z # Last collection here has the cpCrosstalkIsrExps from step 1
+  dataQuery: "instrument='DECam' AND exposure.observation_type IN ('dome flat','science') AND detector IN (16,54)"
 
 extraQgraphOptions: "--dataset-query-constraint off"
 

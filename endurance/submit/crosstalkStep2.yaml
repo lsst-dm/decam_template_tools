@@ -1,0 +1,30 @@
+description: cp_pipe CROSSTALK calibration construction.
+instrument: lsst.obs.decam.DarkEnergyCamera
+tasks:
+  cpCrosstalkExtract:
+    class: lsst.cp.pipe.CrosstalkExtractTask
+    config:
+    - connections.inputExp: cpCrosstalkIsrExp
+      connections.outputRatios: cpCrosstalkRatio
+      background.useApprox: false
+      background.ignoredPixelMask:
+      - BAD
+      - EDGE
+      - DETECTED
+      - DETECTED_NEGATIVE
+      - NO_DATA
+      - CT_TEMP
+  cpCrosstalkSolve:
+    class: lsst.cp.pipe.CrosstalkSolveTask
+    config:
+    - connections.inputRatios: cpCrosstalkRatio
+      connections.outputCrosstalk: crosstalk
+contracts:
+- contract: cpCrosstalkSolve.connections.inputRatios == cpCrosstalkExtract.connections.outputRatios
+subsets:
+  cpCrosstalk:
+    subset:
+    - cpCrosstalkExtract
+    - cpCrosstalkSolve
+    description: Just the extract and solve.
+
