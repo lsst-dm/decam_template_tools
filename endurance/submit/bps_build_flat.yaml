@@ -1,31 +1,31 @@
-band: "z" # Options: g, r, i, and z
-year: "2018" # Options: 2013-2026, except 2015
+band: "r" # Options: g, r, i, and z
+year: "2016" # Options: 2013-2026, except 2015
 
 # Update the year in each dayobs, first is year, second is year + 1
-range: "AND (day_obs > 20180000) AND (day_obs < 20190000)"
+range: "AND (day_obs > 20160000) AND (day_obs < 20170000)"
 
 # UPDATE THIS to the path to the pipeline to run
 pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpFlat.yaml"
 
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
 project: "DECam_Templates"
-campaign: "{year}_{band}-band_Flat"
+campaign: "{year}_{band}-band_Flat_redux"
 
 payload:
   payloadName: "DECam/calib/ELAIS_pilot/flat/{year}/{band}_band"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
-  inCollection: DECam/raw/all,DECam/calib,u/seanmacb/DECam/calib/ELAIS_pilot # ,DECam/calib/ELAIS_pilot/crosstalk/{year}
-  dataQuery: "instrument='DECam' {range} AND band='{band}' AND exposure.observation_type='dome flat'"
+  inCollection: DECam/raw/all,DECam/calib/curated,u/seanmacb/DECam/calib/pilot/overscanRaws,DECam/calib/ELAIS_pilot/bias
+  dataQuery: "instrument='DECam' {range} AND band='{band}' AND exposure.observation_type='dome flat' AND NOT (detector=51 AND exposure=598458)"
 
 extraQgraphOptions: "--dataset-query-constraint off"
 
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
-cluster:
-  cp_flat_isr:
-    pipetasks: cpFlatIsr,cpFlatMeasure
-    dimensions: detector
-    partitionDimensions: exposure
-    partitionMaxClusters: 1000
+# cluster:
+#   cp_flat_isr:
+#     pipetasks: cpFlatIsr,cpFlatMeasure
+#     dimensions: detector
+#     partitionDimensions: exposure
+#     partitionMaxClusters: 1000
 
 # cpFlatCombine stacks every flat for a detector/filter. The 2 GB global
 # default packs all 62 onto one node at once; see cpBiasCombine in

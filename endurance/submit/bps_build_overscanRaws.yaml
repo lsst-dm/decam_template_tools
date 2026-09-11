@@ -1,28 +1,22 @@
-band: "z" # Options: g, r, i, and z
-year: "2013" # Options: 2013-2026, except 2015
-
-# Update the year in each dayobs, first is year, second is year + 1
-range: "AND (day_obs > 20130000) AND (day_obs < 20140000)"
-
 # UPDATE THIS to the path to the pipeline to run
-pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/cpFringe.yaml"
+pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/RunIsrForCrosstalkSources.yaml"
 
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
 project: "DECam_Templates"
-campaign: "{year}_Fringe"
+campaign: "OverscanRaws_calibs"
 
 payload:
-  payloadName: "DECam/calib/ELAIS_pilot/fringe/{year}"
+  payloadName: "DECam/calib/pilot/overscanRaws"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
-  inCollection: DECam/raw/all,DECam/calib/curated,u/seanmacb/DECam/calib/pilot/overscanRaws,DECam/calib/ELAIS_pilot/bias,DECam/calib/flat
-  dataQuery: "instrument='DECam' {range} AND band='{band}'"
+  inCollection: DECam/raw/all,DECam/calib/curated
+  dataQuery: "instrument='DECam'"
 
 extraQgraphOptions: "--dataset-query-constraint off"
 
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
 cluster:
-  cp_fringe_isr:
-    pipetasks: cpFringeIsr,cpFringeMeasure
+  runOverscan:
+    pipetasks: overscan
     dimensions: detector
     partitionDimensions: exposure
     partitionMaxClusters: 1000

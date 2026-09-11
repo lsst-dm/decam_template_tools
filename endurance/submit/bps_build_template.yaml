@@ -1,0 +1,144 @@
+band: "z" # Options: g, r, i, and z
+
+# UPDATE THIS to the path to the pipeline to run
+pipelineYaml: "$AP_PIPE_DIR/pipelines/DECam/QuickTemplate.yaml"
+
+# Just names, but UPDATE THIS AND KEEP THEM SHORT
+project: "DECam_Templates"
+campaign: "{band}-band_Template_pilot"
+
+payload:
+  payloadName: "DECam/calib/ELAIS_pilot/template/{band}_band"
+  butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
+  # skymaps holds skyMap/decam_rings_v1, which every warp and coadd task needs;
+  # refcats/DM-49042/... holds the_monster_20250219 shards for calibrateImage.
+  inCollection: DECam/raw/all,DECam/calib/curated,u/seanmacb/DECam/calib/pilot/overscanRaws,DECam/calib/bias,DECam/calib/flat,DECam/calib/fringe,skymaps,refcats/DM-49042/the_monster_20250219
+  dataQuery: "instrument='DECam' AND band='{band}' AND exposure.observation_type='science' AND detector NOT IN (61,31) AND (detector!=2 AND exposure.day_obs<20160000)"
+
+# obs_decam/config/calibrateImage.py already points both refcats at the monster
+# for this instrument, but pin it here so a stack update can't silently move us
+# back to gaia_dr3/ps1 without the inCollection above changing to match.
+#
+# --skip-existing-in resumes rather than reprocesses: any quantum whose metadata
+# dataset is already registered in that run is dropped from the graph, and its
+# existing outputs are wired in as inputs to whatever consumes them. A quantum
+# that died before writing metadata is NOT skipped, so the failed calibrateImage
+# is still regenerated. Update the run name on each resume; drop the line for a
+# from-scratch build.
+extraQgraphOptions: >-
+  --dataset-query-constraint off
+  -c calibrateImage:connections.astrometry_ref_cat=the_monster_20250219
+  -c calibrateImage:connections.photometry_ref_cat=the_monster_20250219
+
+# calibrateImage catches AlgorithmError, writes the partial visit_image with a
+# failure.message header, then re-raises; by default that exits the whole
+# run-qbb process non-zero, so a single star-poor detector fails its entire
+# cluster job and everything downstream of it. Star-poor DECam detectors are
+# expected in this pilot, and makeDirectWarp already drops detectors whose
+# visit_summary row is missing or has no PhotoCalib/WCS, so let the process
+# treat a partial output as a qualified success and keep going.
+extraRunQuantumOptions: "--no-raise-on-partial-outputs"
+
+# Clusters follow the drp_pipe prescription
+# ($DRP_PIPE_DIR/bps/clustering/LSSTComCam/DRP-clustering.yaml), reduced to the
+# tasks QuickTemplate.yaml actually contains. Each cluster groups a producer
+# with the consumer that reads its output, so the intermediate never leaves the
+# node. Tasks not listed here (consolidateVisitSummary, the whole-sky plots,
+# coaddDepth metrics) are cheap and fall back to one quantum per job.
+clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
+cluster:
+  # isr is (exposure, detector) and calibrateImage is (visit, detector); on
+  # DECam visit == exposure, so equalDimensions lets them share a cluster and
+  # calibrateImage picks up the post_isr_image its cluster-mate just wrote.
+  # 87 g-band science exposures x 62 detectors, chunked to ~1000 jobs the same
+  # way bps_build_bias.yaml and bps_build_flat.yaml size their ISR steps.
+  single_frame:
+    pipetasks: isr,calibrateImage
+    dimensions: detector
+    equalDimensions: visit:exposure
+    partitionDimensions: exposure
+    partitionMaxClusters: 1000
+
+  # makePsfMatchedWarp only ever reads the direct warp makeDirectWarp produced
+  # for the same patch and visit, so pairing them keeps the direct warp on the
+  # node. Clustered per (tract, visit) rather than per patch: 567 jobs of ~25
+  # warp pairs each, instead of 7025 single-pair jobs whose pipetask startup
+  # would eat into the 4 h walltime.
+  warps:
+    pipetasks: makeDirectWarp,makePsfMatchedWarp
+    dimensions: tract,visit
+
+  # selectTemplateCoaddVisits feeds assembleTemplateCoadd at the same patch.
+  patch_template_coadd:
+    pipetasks: selectTemplateCoaddVisits,assembleTemplateCoadd
+    dimensions: tract,patch,band
+
+  # Per-patch binned images, gathered one job per tract so the many small
+  # quanta don't each pay job startup.
+  binned_coadd_images:
+    pipetasks: makeBinnedTemplateCoaddImage,makeBinnedTemplateCoaddNImage
+    dimensions: tract,band
+
+  # Tract-level aggregation and the whole-tract mosaics built from the binned
+  # images above.
+  tract_metrics:
+    pipetasks: makeTemplateCoaddInputSummaryTract,aggregateTemplateCoaddMaskFractions,makeWholeTractTemplateCoaddImage,makeWholeTractTemplateCoaddNImage
+    dimensions: tract,band
+
+# Memory is looked up by job name, so a clustered task needs the value on its
+# cluster label; the bare task labels are kept for the unclustered case. Values
+# follow $DRP_PIPE_DIR/bps/resources/LSSTComCam/DRP.yaml. assembleTemplateCoadd
+# is the heavy one: CompareWarpAssembleCoadd holds a static sky model plus the
+# warps for a patch, and the 2 GB global default is nowhere near enough.
+pipetask:
+  single_frame:
+    requestMemory: 8000
+  isr:
+    requestMemory: 8000
+  warps:
+    requestMemory: 8000
+  patch_template_coadd:
+    requestMemory: 20000
+  assembleTemplateCoadd:
+    requestMemory: 20000
+
+computeSite: "task_vine"
+wmsServiceClass: lsst.ctrl.bps.parsl.ParslService
+
+parsl:
+  log_level: INFO
+
+site:
+  local:
+    class: lsst.ctrl.bps.parsl.sites.Local
+    cores: 8
+  triple_slurm:
+    class: lsst.ctrl.bps.parsl.sites.TripleSlurm
+    nodes: 1
+    cores_per_node: 100
+    qos: normal
+    small_memory: 2.0     # Units are GB
+    medium_memory: 4.0
+    large_memory: 8.0
+    small_walltime: 10.0   # Units are hours
+    medium_walltime: 10.0
+    large_walltime: 40.0
+    monitorEnable: true
+    monitorFilename: runinfo/monitoring.db
+  task_vine:
+    class: bps_parsl_sites.SlurmTaskVine
+    walltime: "04:00:00"
+    qos: regular
+    constraint: cpu
+    exclusive: true
+    nodes_per_block: 1
+    provider_options:
+      init_blocks: 1
+      min_blocks: 0
+      max_blocks: 1
+    scheduler_options: |
+      #SBATCH --module=cvmfs
+      #SBATCH --account=m1727
+    worker_options: "--memory=480000"  # total memory in MB
+    monitorEnable: true
+    monitorFilename: runinfo/monitoring.db
