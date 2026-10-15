@@ -44,5 +44,5 @@ melon_parse_args() {
     # The short name becomes a directory, so it must not be the full (slashed) path.
     [[ "$NAME" != */* ]] || melon_die "short name '$NAME' must not contain '/'"
     REPO="$BUTLER_PARENT/$NAME"
-    COLLECTIONS="${COLLECTIONS:-$CHAIN/template}"
+    COLLECTIONS="${COLLECTIONS:-$CHAIN}"
 }

@@ -1,0 +1,60 @@
+#!/bin/bash
+# Overscan -> single-frame -> template jobs for one sky chunk.
+#   ./run_chunk.sh <chunk>
+# The sky extent for each chunk id comes from chunk_grid.py (chunk 0 = RA 270-300,
+# dec 0..30; ids step down in dec, then move to the next RA column).
+#
+# Must be run from this directory with the LSST stack set up
+# (see ~/startup_desc_commands.sh), so that ./submit points at the scratch dir.
+#
+# Each stage's bps job writes u/$USER/<payloadName>, a CHAINED collection of its
+# run plus its inputs, and the next stage reads from that chain:
+#   overscanRaws/chunkN -> singleFrame/chunkN -> template/chunkN
+# so no manual collection-chain is needed.
+#
+# Set START=singleFrame or START=template to resume from a later stage.
+set -euo pipefail
+
+export CHUNK=${1:?chunk id}
+REPO=${REPO:-/global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo}
+START=${START:-overscan}
+# calibrateImage legitimately fails on some star-poor detectors and the
+# downstream tasks skip them, so single-frame only needs most of them.
+SF_MIN_FRACTION=${SF_MIN_FRACTION:-0.9}
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+cd "$HERE"
+EXP_CONSTRAINT=$(python chunk_grid.py "$CHUNK")
+export EXP_CONSTRAINT
+[ "$CHUNK" -lt 48 ] || echo "Warning: chunks 48-51 repeat the sky of chunks 0-3." >&2
+echo "chunk ${CHUNK}: ${EXP_CONSTRAINT}"
+
+# Raws each stage is expected to produce an output for. Keep in sync with the
+# dataQuery in the matching bps_build_chunk_*.yaml.
+OVERSCAN_WHERE="instrument='DECam' AND exposure.observation_type='science' AND exposure.day_obs<20160000 AND ${EXP_CONSTRAINT}"
+SF_WHERE="instrument='DECam' AND exposure.observation_type='science' AND detector NOT IN (61,31) AND (detector!=2 AND exposure.day_obs<20160000) AND ${EXP_CONSTRAINT}"
+
+stage_ge() { # is $1 at or after START?
+    local order=(overscan singleFrame template) i s=-1 t=-1
+    for i in "${!order[@]}"; do [ "${order[$i]}" = "$START" ] && s=$i; [ "${order[$i]}" = "$1" ] && t=$i; done
+    [ "$s" -ge 0 ] || { echo "START must be overscan, singleFrame or template" >&2; exit 2; }
+    [ "$t" -ge "$s" ]
+}
+
+# `bps submit` blocks until every job has finished but exits 0 even if jobs
+# failed, so each stage is followed by an output check before the next starts.
+
+if stage_ge overscan; then
+    bps submit bps_build_chunk_overscanRaws.yaml
+    python check_complete.py "$REPO" "u/${USER}/DECam/endurance/overscanRaws/chunk${CHUNK}" \
+        overscanRaw "$OVERSCAN_WHERE" 1.0 \
+      || { echo "Overscan incomplete for chunk ${CHUNK}; stopping." >&2; exit 1; }
+fi
+
+if stage_ge singleFrame; then
+    bps submit bps_build_chunk_singleFrame.yaml
+    python check_complete.py "$REPO" "u/${USER}/DECam/endurance/singleFrame/chunk${CHUNK}" \
+        preliminary_visit_image "$SF_WHERE" "$SF_MIN_FRACTION" \
+      || { echo "Single-frame incomplete for chunk ${CHUNK}; stopping." >&2; exit 1; }
+fi
+
+bps submit bps_build_chunk_template.yaml

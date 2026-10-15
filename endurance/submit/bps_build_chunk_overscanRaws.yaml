@@ -1,0 +1,79 @@
+# Set by run_chunk.sh (CHUNK, EXP_CONSTRAINT) so this file and
+# bps_build_chunk_template.yaml always describe the same sky region.
+chunk: ${CHUNK}
+expConstraint: "${EXP_CONSTRAINT}"
+
+# UPDATE THIS to the path to the pipeline to run
+pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/RunIsrForCrosstalkSources.yaml"
+
+# Just names, but UPDATE THIS AND KEEP THEM SHORT
+project: "DECam_Templates"
+campaign: "chunk{chunk}_OverscanRaws"
+
+payload:
+  # bps makes u/{operator}/{payloadName} a CHAINED collection of this run plus
+  # inCollection; bps_build_chunk_template.yaml reads overscanRaw through it.
+  payloadName: "DECam/endurance/overscanRaws/chunk{chunk}"
+  butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
+  inCollection: DECam/raw/all,DECam/calib/curated
+  # No detector cuts here, unlike the template query: crosstalk reads overscanRaw
+  # from the other detectors of the same exposure, including 2, 31 and 61.
+  dataQuery: "instrument='DECam' AND exposure.observation_type='science' AND exposure.day_obs<20160000 AND {expConstraint}"
+
+extraQgraphOptions: "--dataset-query-constraint off"
+
+clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
+cluster:
+  runOverscan:
+    pipetasks: overscan
+    dimensions: detector
+    partitionDimensions: exposure
+    partitionMaxClusters: 1000
+
+# cpFlatCombine stacks every flat for a detector/filter. The 2 GB global
+# default packs all 62 onto one node at once; see cpBiasCombine in
+# bps_build_bias.yaml, where that caused a ~27 min per-quantum runtime.
+pipetask:
+  cpFlatCombine:
+    requestMemory: 32768
+
+computeSite: "task_vine"
+wmsServiceClass: lsst.ctrl.bps.parsl.ParslService
+
+parsl:
+  log_level: INFO
+
+site:
+  local:
+    class: lsst.ctrl.bps.parsl.sites.Local
+    cores: 8
+  triple_slurm:
+    class: lsst.ctrl.bps.parsl.sites.TripleSlurm
+    nodes: 1
+    cores_per_node: 100
+    qos: normal
+    small_memory: 2.0     # Units are GB
+    medium_memory: 4.0
+    large_memory: 8.0
+    small_walltime: 10.0   # Units are hours
+    medium_walltime: 10.0
+    large_walltime: 40.0
+    monitorEnable: true
+    monitorFilename: runinfo/monitoring.db
+  task_vine:
+    class: bps_parsl_sites.SlurmTaskVine
+    walltime: "04:00:00"
+    qos: regular
+    constraint: cpu
+    exclusive: true
+    nodes_per_block: 1
+    provider_options:
+      init_blocks: 1
+      min_blocks: 0
+      max_blocks: 1
+    scheduler_options: |
+      #SBATCH --module=cvmfs
+      #SBATCH --account=m1727
+    worker_options: "--memory=480000"  # total memory in MB
+    monitorEnable: true
+    monitorFilename: runinfo/monitoring.db

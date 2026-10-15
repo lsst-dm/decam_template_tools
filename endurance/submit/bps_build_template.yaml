@@ -1,4 +1,4 @@
-band: "z" # Options: g, r, i, and z
+band: "r" # Options: g, r, i, and z
 
 # UPDATE THIS to the path to the pipeline to run
 pipelineYaml: "$AP_PIPE_DIR/pipelines/DECam/QuickTemplate.yaml"
@@ -8,12 +8,12 @@ project: "DECam_Templates"
 campaign: "{band}-band_Template_pilot"
 
 payload:
-  payloadName: "DECam/calib/ELAIS_pilot/template/{band}_band"
+  payloadName: "DECam/calib/ELAIS_pilot_w40/template/{band}_band_bestSeeing_1_5"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
   # skymaps holds skyMap/decam_rings_v1, which every warp and coadd task needs;
   # refcats/DM-49042/... holds the_monster_20250219 shards for calibrateImage.
   inCollection: DECam/raw/all,DECam/calib/curated,u/seanmacb/DECam/calib/pilot/overscanRaws,DECam/calib/bias,DECam/calib/flat,DECam/calib/fringe,skymaps,refcats/DM-49042/the_monster_20250219
-  dataQuery: "instrument='DECam' AND band='{band}' AND exposure.observation_type='science' AND detector NOT IN (61,31) AND (detector!=2 AND exposure.day_obs<20160000)"
+  dataQuery: "instrument='DECam' AND band='{band}' AND exposure.observation_type='science' AND detector NOT IN (61,31) AND (detector!=2 AND exposure.day_obs<20160000) AND skymap='lsst_cells_v2'"
 
 # obs_decam/config/calibrateImage.py already points both refcats at the monster
 # for this instrument, but pin it here so a stack update can't silently move us
@@ -29,6 +29,12 @@ extraQgraphOptions: >-
   --dataset-query-constraint off
   -c calibrateImage:connections.astrometry_ref_cat=the_monster_20250219
   -c calibrateImage:connections.photometry_ref_cat=the_monster_20250219
+  -t lsst.pipe.tasks.selectImages.BestSeeingSelectVisitsTask:selectTemplateCoaddVisits
+  -c selectTemplateCoaddVisits:connections.visitSummaries=preliminary_visit_summary
+  -c selectTemplateCoaddVisits:connections.goodVisits=template_coadd_visit_selection
+  -c selectTemplateCoaddVisits:nVisitsMax=6
+  -C selectTemplateCoaddVisits:/global/homes/s/seanmacb/decam_template_tools/endurance/submit/selectTemplateCoaddVisits_bestSeeing.py
+  -c selectTemplateCoaddVisits:maxPsfFwhm=1.5
 
 # calibrateImage catches AlgorithmError, writes the partial visit_image with a
 # failure.message header, then re-raises; by default that exits the whole

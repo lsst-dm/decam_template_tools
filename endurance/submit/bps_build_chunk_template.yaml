@@ -1,0 +1,129 @@
+# Stage 3 of 3: everything downstream of single-frame processing (visit
+# summaries, warps, template coadds, metrics) for one sky chunk. Run by
+# run_chunk.sh after bps_build_chunk_singleFrame.yaml.
+
+# Set by run_chunk.sh (CHUNK, EXP_CONSTRAINT); sky window comes from chunk_grid.py.
+chunk: ${CHUNK}
+expConstraint: "${EXP_CONSTRAINT}"
+# Chain written by the single-frame job (bps_build_chunk_singleFrame.yaml).
+singleFrameColl: "u/${USER}/DECam/endurance/singleFrame/chunk{chunk}"
+
+# The makeTemplate and makeMetrics subsets of QuickTemplate.yaml: everything
+# except isr and calibrateImage, which the single-frame job already ran.
+pipelineYaml: "$AP_PIPE_DIR/pipelines/DECam/QuickTemplate.yaml#makeTemplate,makeMetrics"
+
+# Just names, but UPDATE THIS AND KEEP THEM SHORT
+project: "DECam_Templates"
+campaign: "chunk{chunk}_Templates"
+
+payload:
+  payloadName: "DECam/endurance/template/chunk{chunk}"
+  butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
+  # singleFrameColl is a chain of the single-frame run (preliminary_visit_image
+  # and friends) and that job's own inputs, so raws, curated calibs and refcats
+  # stay reachable. skymaps holds skyMap/decam_rings_v1, which every warp and
+  # coadd task needs.
+  inCollection: "{singleFrameColl},skymaps"
+  dataQuery: "instrument='DECam' AND exposure.observation_type='science' AND detector NOT IN (61,31) AND (detector!=2 AND exposure.day_obs<20160000) AND skymap='lsst_cells_v2' AND {expConstraint}"
+
+# --skip-existing-in resumes rather than reprocesses: any quantum whose metadata
+# dataset is already registered in that run is dropped from the graph, and its
+# existing outputs are wired in as inputs to whatever consumes them. A quantum
+# that died before writing metadata is NOT skipped, so it is still regenerated.
+# Update the run name on each resume; drop the line for a from-scratch build.
+extraQgraphOptions: >-
+  --dataset-query-constraint off
+  -t lsst.pipe.tasks.selectImages.BestSeeingSelectVisitsTask:selectTemplateCoaddVisits
+  -c selectTemplateCoaddVisits:connections.visitSummaries=preliminary_visit_summary
+  -c selectTemplateCoaddVisits:connections.goodVisits=template_coadd_visit_selection
+  -c selectTemplateCoaddVisits:nVisitsMax=6
+  -C selectTemplateCoaddVisits:/global/homes/s/seanmacb/decam_template_tools/endurance/submit/selectTemplateCoaddVisits_bestSeeing.py
+  -c selectTemplateCoaddVisits:maxPsfFwhm=1.5
+
+# Clusters follow the drp_pipe prescription
+# ($DRP_PIPE_DIR/bps/clustering/LSSTComCam/DRP-clustering.yaml), reduced to the
+# post-single-frame tasks QuickTemplate.yaml actually contains. Each cluster
+# groups a producer with the consumer that reads its output, so the
+# intermediate never leaves the node. Tasks not listed here (consolidateVisitSummary, the whole-sky plots,
+# coaddDepth metrics) are cheap and fall back to one quantum per job.
+clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
+cluster:
+  # makePsfMatchedWarp only ever reads the direct warp makeDirectWarp produced
+  # for the same patch and visit, so pairing them keeps the direct warp on the
+  # node. Clustered per (tract, visit) rather than per patch: 567 jobs of ~25
+  # warp pairs each, instead of 7025 single-pair jobs whose pipetask startup
+  # would eat into the 4 h walltime.
+  warps:
+    pipetasks: makeDirectWarp,makePsfMatchedWarp
+    dimensions: tract,visit
+
+  # selectTemplateCoaddVisits feeds assembleTemplateCoadd at the same patch.
+  patch_template_coadd:
+    pipetasks: selectTemplateCoaddVisits,assembleTemplateCoadd
+    dimensions: tract,patch,band
+
+  # Per-patch binned images, gathered one job per tract so the many small
+  # quanta don't each pay job startup.
+  binned_coadd_images:
+    pipetasks: makeBinnedTemplateCoaddImage,makeBinnedTemplateCoaddNImage
+    dimensions: tract,band
+
+  # Tract-level aggregation and the whole-tract mosaics built from the binned
+  # images above.
+  tract_metrics:
+    pipetasks: makeTemplateCoaddInputSummaryTract,aggregateTemplateCoaddMaskFractions,makeWholeTractTemplateCoaddImage,makeWholeTractTemplateCoaddNImage
+    dimensions: tract,band
+
+# Memory is looked up by job name, so a clustered task needs the value on its
+# cluster label; the bare task labels are kept for the unclustered case. Values
+# follow $DRP_PIPE_DIR/bps/resources/LSSTComCam/DRP.yaml. assembleTemplateCoadd
+# is the heavy one: CompareWarpAssembleCoadd holds a static sky model plus the
+# warps for a patch, and the 2 GB global default is nowhere near enough.
+pipetask:
+  warps:
+    requestMemory: 8000
+  patch_template_coadd:
+    requestMemory: 20000
+  assembleTemplateCoadd:
+    requestMemory: 20000
+
+computeSite: "task_vine"
+wmsServiceClass: lsst.ctrl.bps.parsl.ParslService
+
+parsl:
+  log_level: INFO
+
+site:
+  local:
+    class: lsst.ctrl.bps.parsl.sites.Local
+    cores: 8
+  triple_slurm:
+    class: lsst.ctrl.bps.parsl.sites.TripleSlurm
+    nodes: 1
+    cores_per_node: 100
+    qos: normal
+    small_memory: 2.0     # Units are GB
+    medium_memory: 4.0
+    large_memory: 8.0
+    small_walltime: 10.0   # Units are hours
+    medium_walltime: 10.0
+    large_walltime: 40.0
+    monitorEnable: true
+    monitorFilename: runinfo/monitoring.db
+  task_vine:
+    class: bps_parsl_sites.SlurmTaskVine
+    walltime: "04:00:00"
+    qos: regular
+    constraint: cpu
+    exclusive: true
+    nodes_per_block: 1
+    provider_options:
+      init_blocks: 1
+      min_blocks: 0
+      max_blocks: 1
+    scheduler_options: |
+      #SBATCH --module=cvmfs
+      #SBATCH --account=m1727
+    worker_options: "--memory=480000"  # total memory in MB
+    monitorEnable: true
+    monitorFilename: runinfo/monitoring.db
