@@ -96,15 +96,20 @@ site:
     monitorFilename: runinfo/monitoring.db
   task_vine:
     class: bps_parsl_sites.SlurmTaskVine
-    walltime: "04:00:00"
+    walltime: "24:00:00"
     qos: regular
     constraint: cpu
     exclusive: true
     nodes_per_block: 1
+    # 8 one-node blocks, not one 8-node block: work starts when the first node
+    # is granted and the rest join the same TaskVine manager as they come up
+    # (a single 8-node block would wait for 8 free nodes at once). Keep these
+    # literal ints; bps would substitute an env var as a string, which Parsl
+    # rejects.
     provider_options:
-      init_blocks: 1
+      init_blocks: 8
       min_blocks: 0
-      max_blocks: 1
+      max_blocks: 8
     scheduler_options: |
       #SBATCH --module=cvmfs
       #SBATCH --account=m1727

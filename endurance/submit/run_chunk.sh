@@ -1,8 +1,8 @@
 #!/bin/bash
 # Overscan -> single-frame -> template jobs for one sky chunk.
 #   ./run_chunk.sh <chunk>
-# The sky extent for each chunk id comes from chunk_grid.py (chunk 0 = RA 270-300,
-# dec 0..30; ids step down in dec, then move to the next RA column).
+# The sky extent for each chunk id comes from chunk_grid.py (chunk 0 = RA 300-330,
+# dec 0..30; ids step down in dec, then move to the next RA column; 48 chunks, 0-47).
 #
 # Must be run from this directory with the LSST stack set up
 # (see ~/startup_desc_commands.sh), so that ./submit points at the scratch dir.
@@ -32,7 +32,6 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "$HERE"
 EXP_CONSTRAINT=$(python chunk_grid.py "$CHUNK")
 export EXP_CONSTRAINT
-[ "$CHUNK" -lt 48 ] || echo "Warning: chunks 48-51 repeat the sky of chunks 0-3." >&2
 echo "chunk ${CHUNK}: ${EXP_CONSTRAINT}"
 
 # Raws each stage is expected to produce an output for. Keep in sync with the
