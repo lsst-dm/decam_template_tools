@@ -1,0 +1,12 @@
+includeConfigs:
+  - /global/u1/d/descdm/seanmacb/decam_template_tools/endurance/submit/bps_build_flat.yaml
+year: "2024"
+submitPath: "/pscratch/sd/d/descdm/butlersubmits/{outputRun}"  # repo symlink ./submit points at seanmacb scratch
+band: "g"
+range: "AND (day_obs > 20240000) AND (day_obs < 20240401)"
+campaign: "{year}_{band}-band_p1_janmar_Flat_redux"
+# g-band dome-flat pattern changed between the 2024-03-10 and 2024-04-10 sets (0.8% rms):
+# Jan-Mar matches 2022-23; certify for that period only
+payload:
+  payloadName: "DECam/calib/ELAIS_pilot/flat_v2/{year}/{band}_band_p1_janmar"
+  dataQuery: "instrument='DECam' {range} AND band='{band}' AND exposure.observation_type='dome flat' AND NOT (detector=51 AND exposure=598458)"

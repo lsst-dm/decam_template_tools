@@ -1,5 +1,7 @@
 # Set by run_chunk.sh (CHUNK, EXP_CONSTRAINT) so this file and
 # bps_build_chunk_template.yaml always describe the same sky region.
+# EXP_CONSTRAINT is the sky window from chunk_grid.py minus the exposures the
+# exclude lists (DELVE, corrupt raws) reject outright (delve_exclude.py).
 chunk: ${CHUNK}
 expConstraint: "${EXP_CONSTRAINT}"
 
@@ -9,18 +11,30 @@ pipelineYaml: "$CP_PIPE_DIR/pipelines/DECam/RunIsrForCrosstalkSources.yaml"
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
 project: "DECam_Templates"
 campaign: "chunk{chunk}_OverscanRaws"
+# Submit dir (graph, job scripts, logs) in the operator's own scratch, not the
+# default ./submit: that is a git-tracked symlink only one account can write.
+submitPath: ${PSCRATCH}/endurance_submit/{outputRun}
 
 payload:
   # bps makes u/{operator}/{payloadName} a CHAINED collection of this run plus
-  # inCollection; bps_build_chunk_template.yaml reads overscanRaw through it.
+  # inCollection; bps_build_chunk_singleFrame.yaml reads overscanRaw through it.
   payloadName: "DECam/endurance/overscanRaws/chunk{chunk}"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
   inCollection: DECam/raw/all,DECam/calib/curated
   # No detector cuts here, unlike the template query: crosstalk reads overscanRaw
-  # from the other detectors of the same exposure, including 2, 31 and 61.
-  dataQuery: "instrument='DECam' AND exposure.observation_type='science' AND exposure.day_obs<20160000 AND {expConstraint}"
+  # from the other detectors of the same exposure, including 2, 31 and 61 and
+  # the single CCDs the exclude lists drop from the later stages.
+  # All observing dates.
+  dataQuery: "instrument='DECam' AND exposure.observation_type='science' AND {expConstraint}"
 
-extraQgraphOptions: "--dataset-query-constraint off"
+# --skip-existing-in drops every quantum whose overscan_metadata is already in
+# this chunk's chain. A rerun (e.g. after more raws are ingested) then only
+# processes the new exposures and prepends a run holding just those to the
+# chain. On a chunk's first run the chain doesn't exist yet and nothing is
+# skipped.
+extraQgraphOptions: >-
+  --dataset-query-constraint off
+  --skip-existing-in {output}
 
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
 cluster:
@@ -67,10 +81,15 @@ site:
     constraint: cpu
     exclusive: true
     nodes_per_block: 1
+    # 4 one-node blocks, not one 4-node block: work starts when the first node
+    # is granted and the rest join the same TaskVine manager as they come up.
+    # The 2026-10-16 chunk 0 run managed <=3.7k overscan quanta per node-hour.
+    # Keep these literal ints; bps would substitute an env var as a string,
+    # which Parsl rejects.
     provider_options:
-      init_blocks: 1
+      init_blocks: 4
       min_blocks: 0
-      max_blocks: 1
+      max_blocks: 4
     scheduler_options: |
       #SBATCH --module=cvmfs
       #SBATCH --account=m1727

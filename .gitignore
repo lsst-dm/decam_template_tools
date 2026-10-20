@@ -216,3 +216,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+endurance/submit/runinfo
+endurance/submit/cmd_*.sh
+endurance/data/corrupt_raws.csv

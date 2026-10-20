@@ -1,0 +1,10 @@
+includeConfigs:
+  - /global/u1/d/descdm/seanmacb/decam_template_tools/endurance/submit/bps_build_fringe.yaml
+year: "2016"
+submitPath: "/pscratch/sd/d/descdm/butlersubmits/{outputRun}"  # repo symlink ./submit points at seanmacb scratch
+band: "z"
+range: "AND (day_obs > 20160000) AND (day_obs < 20170000)"
+extraQgraphOptions: "--dataset-query-constraint off --skip-existing-in u/descdm/DECam/calib/ELAIS_pilot/fringe_v2/2016/20261028T225158Z"
+payload:
+  payloadName: "DECam/calib/ELAIS_pilot/fringe_v2/{year}"
+  dataQuery: "instrument='DECam' {range} AND band='{band}' AND exposure.observation_type='science' AND NOT (detector=2 AND day_obs<20161229) AND NOT (detector=59 AND exposure=591839) AND NOT (detector=34 AND exposure=563122) AND NOT (detector=16 AND exposure=563896)"

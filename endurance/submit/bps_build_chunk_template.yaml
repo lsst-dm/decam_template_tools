@@ -2,11 +2,13 @@
 # summaries, warps, template coadds, metrics) for one sky chunk. Run by
 # run_chunk.sh after bps_build_chunk_singleFrame.yaml.
 
-# Set by run_chunk.sh (CHUNK, EXP_CONSTRAINT); sky window comes from chunk_grid.py.
+# Set by run_chunk.sh (CHUNK, DET_CONSTRAINT): the sky window from chunk_grid.py
+# minus the exposures and CCDs on the exclude lists, DELVE and corrupt raws
+# (delve_exclude.py).
 chunk: ${CHUNK}
-expConstraint: "${EXP_CONSTRAINT}"
+detConstraint: "${DET_CONSTRAINT}"
 # Chain written by the single-frame job (bps_build_chunk_singleFrame.yaml).
-singleFrameColl: "u/${USER}/DECam/endurance/singleFrame/chunk{chunk}"
+singleFrameColl: "u/{operator}/DECam/endurance/singleFrame/chunk{chunk}"
 
 # The makeTemplate and makeMetrics subsets of QuickTemplate.yaml: everything
 # except isr and calibrateImage, which the single-frame job already ran.
@@ -15,6 +17,8 @@ pipelineYaml: "$AP_PIPE_DIR/pipelines/DECam/QuickTemplate.yaml#makeTemplate,make
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
 project: "DECam_Templates"
 campaign: "chunk{chunk}_Templates"
+# Submit dir in the operator's own scratch; see bps_build_chunk_overscanRaws.yaml.
+submitPath: ${PSCRATCH}/endurance_submit/{outputRun}
 
 payload:
   payloadName: "DECam/endurance/template/chunk{chunk}"
@@ -24,20 +28,25 @@ payload:
   # stay reachable. skymaps holds skyMap/decam_rings_v1, which every warp and
   # coadd task needs.
   inCollection: "{singleFrameColl},skymaps"
-  dataQuery: "instrument='DECam' AND exposure.observation_type='science' AND detector NOT IN (61,31) AND (detector!=2 AND exposure.day_obs<20160000) AND skymap='lsst_cells_v2' AND {expConstraint}"
+  # Same raws as bps_build_chunk_singleFrame.yaml: detector 2 (S30) is cut
+  # before 2016-12-29.
+  dataQuery: "instrument='DECam' AND exposure.observation_type='science' AND detector NOT IN (61,31) AND NOT (detector=2 AND exposure.day_obs<20161229) AND skymap='lsst_cells_v2' AND {detConstraint}"
 
 # --skip-existing-in resumes rather than reprocesses: any quantum whose metadata
 # dataset is already registered in that run is dropped from the graph, and its
 # existing outputs are wired in as inputs to whatever consumes them. A quantum
 # that died before writing metadata is NOT skipped, so it is still regenerated.
 # Update the run name on each resume; drop the line for a from-scratch build.
+#
+# ${PWD} is this directory (run_chunk.sh cd's here first), so the override file
+# comes from the operator's own checkout; another user's home may be unreadable.
 extraQgraphOptions: >-
   --dataset-query-constraint off
   -t lsst.pipe.tasks.selectImages.BestSeeingSelectVisitsTask:selectTemplateCoaddVisits
   -c selectTemplateCoaddVisits:connections.visitSummaries=preliminary_visit_summary
   -c selectTemplateCoaddVisits:connections.goodVisits=template_coadd_visit_selection
   -c selectTemplateCoaddVisits:nVisitsMax=6
-  -C selectTemplateCoaddVisits:/global/homes/s/seanmacb/decam_template_tools/endurance/submit/selectTemplateCoaddVisits_bestSeeing.py
+  -C selectTemplateCoaddVisits:${PWD}/selectTemplateCoaddVisits_bestSeeing.py
   -c selectTemplateCoaddVisits:maxPsfFwhm=1.5
 
 # Clusters follow the drp_pipe prescription
@@ -52,7 +61,8 @@ cluster:
   # for the same patch and visit, so pairing them keeps the direct warp on the
   # node. Clustered per (tract, visit) rather than per patch: 567 jobs of ~25
   # warp pairs each, instead of 7025 single-pair jobs whose pipetask startup
-  # would eat into the 4 h walltime.
+  # would eat into the walltime. A full chunk puts ~60-90 pairs, 1-1.5 h, in each
+  # job, hence the 12 h walltime below: a block that ends kills its jobs mid-way.
   warps:
     pipetasks: makeDirectWarp,makePsfMatchedWarp
     dimensions: tract,visit
@@ -75,17 +85,19 @@ cluster:
     dimensions: tract,band
 
 # Memory is looked up by job name, so a clustered task needs the value on its
-# cluster label; the bare task labels are kept for the unclustered case. Values
-# follow $DRP_PIPE_DIR/bps/resources/LSSTComCam/DRP.yaml. assembleTemplateCoadd
-# is the heavy one: CompareWarpAssembleCoadd holds a static sky model plus the
-# warps for a patch, and the 2 GB global default is nowhere near enough.
+# cluster label; the bare task labels are kept for the unclustered case.
+# TaskVine packs jobs onto the 480 GB worker by this request, so it sets how
+# many run at once. Values are ~2x the pilot's peaks: warps 2.3 GB, and
+# assembleTemplateCoadd 2.4 GB (CompareWarpAssembleCoadd holds a static sky model
+# plus the patch's warps, so the 2 GB global default is not enough). The
+# DRP.yaml values these replaced (8 and 20 GB) allowed only 60 and 24 at once.
 pipetask:
   warps:
-    requestMemory: 8000
+    requestMemory: 4000
   patch_template_coadd:
-    requestMemory: 20000
+    requestMemory: 5000
   assembleTemplateCoadd:
-    requestMemory: 20000
+    requestMemory: 5000
 
 computeSite: "task_vine"
 wmsServiceClass: lsst.ctrl.bps.parsl.ParslService
@@ -110,17 +122,19 @@ site:
     large_walltime: 40.0
     monitorEnable: true
     monitorFilename: runinfo/monitoring.db
+  # A chunk is ~715k warp pairs at ~65 s and ~100k coadds at ~64 s (pilot),
+  # ~15k task-hours: about 8 h on 16 nodes, against ~12 days on one.
   task_vine:
     class: bps_parsl_sites.SlurmTaskVine
-    walltime: "04:00:00"
+    walltime: "12:00:00"
     qos: regular
     constraint: cpu
     exclusive: true
     nodes_per_block: 1
     provider_options:
-      init_blocks: 1
+      init_blocks: 16
       min_blocks: 0
-      max_blocks: 1
+      max_blocks: 16
     scheduler_options: |
       #SBATCH --module=cvmfs
       #SBATCH --account=m1727

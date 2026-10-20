@@ -1,8 +1,8 @@
 """Sky grid of processing chunks: 30 x 30 deg cells, RA columns outer, dec rows inner.
 
-chunk 0 is RA 270-300, dec 0..30; chunk 1 is the next cell down in dec
+chunk 0 is RA 300-330, dec 0..30; chunk 1 is the next cell down in dec
 (-30..0), and so on to dec -90..-60 (chunk 3), after which chunk 4 starts the
-next RA column (300-330).
+next RA column (330-360).
 
     python chunk_grid.py 5     # print the exposure constraint for chunk 5
     python chunk_grid.py       # list every chunk
@@ -12,8 +12,11 @@ import sys
 import numpy as np
 
 step = 30
+# RA where chunk 0 starts. The existing u/<operator>/DECam/endurance/*/chunk0
+# collections were built for RA 300-330, so moving this renumbers them.
+ra0 = 300
 
-ra_min, ra_max = np.arange(270, 360 + 270 + 1, step=step) % 360, np.arange(270 + step, 360 + 270 + 1 + step, step=step) % 360
+ra_min, ra_max = np.arange(ra0, 360 + ra0 + 1, step=step) % 360, np.arange(ra0 + step, 360 + ra0 + 1 + step, step=step) % 360
 dec_min, dec_max = np.arange(30 - step, -61 - step, step=-step), np.arange(30, -61, step=-step)
 
 ras, decs = np.array([ra_min, ra_max]).T, np.array([dec_min, dec_max]).T
