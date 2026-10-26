@@ -20,7 +20,12 @@ payload:
   # from the other detectors of the same exposure, including 2, 31 and 61.
   dataQuery: "instrument='DECam' AND exposure.observation_type='science' AND {expConstraint}"
 
-extraQgraphOptions: "--dataset-query-constraint off"
+# SKIP_EXISTING_OPT is set by run_chunk.sh: empty on the first run of a chunk, and
+# --skip-existing-in <this chunk's chain> after that, so a re-run (e.g. after
+# ingesting more raws that fall in the chunk or its pad) only processes the
+# exposure/detectors that have no overscan metadata yet. A quantum that died
+# before writing metadata is not skipped.
+extraQgraphOptions: "--dataset-query-constraint off ${SKIP_EXISTING_OPT}"
 
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
 cluster:

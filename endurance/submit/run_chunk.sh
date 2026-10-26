@@ -56,8 +56,16 @@ want() { # selected in STAGES and not before START?
 # failed, so each stage is followed by an output check before the next starts.
 
 if want overscan; then
+    # Re-running a chunk resumes: skip quanta already done in its chain.
+    OVERSCAN_CHAIN="u/${USER}/DECam/endurance/overscanRaws/chunk${CHUNK}"
+    if butler query-collections "$REPO" "$OVERSCAN_CHAIN" > /dev/null 2>&1; then
+        export SKIP_EXISTING_OPT="--skip-existing-in ${OVERSCAN_CHAIN}"
+        echo "Overscan: resuming, skipping quanta already in ${OVERSCAN_CHAIN}"
+    else
+        export SKIP_EXISTING_OPT=""
+    fi
     bps submit bps_build_chunk_overscanRaws.yaml
-    python check_complete.py "$REPO" "u/${USER}/DECam/endurance/overscanRaws/chunk${CHUNK}" \
+    python check_complete.py "$REPO" "$OVERSCAN_CHAIN" \
         overscanRaw "$SF_WHERE" 1.0 \
       || { echo "Overscan incomplete for chunk ${CHUNK}; stopping." >&2; exit 1; }
 fi
