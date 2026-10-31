@@ -2,10 +2,12 @@
 
 chunk 0 is RA 300-330, dec 0..30; chunk 1 is the next cell down in dec
 (-30..0), and so on to dec -90..-60 (chunk 3), after which chunk 4 starts the
-next RA column (330-360).
+next RA column (330-360). Twelve RA columns x four dec rows = 48 chunks (0-47);
+the last column is RA 270-300. Nothing above dec +30 is covered.
 
     python chunk_grid.py 5     # print the exposure constraint for chunk 5
     python chunk_grid.py       # list every chunk
+    python chunk_grid.py --plot [out.png]   # map of which chunk is where
 """
 import sys
 
@@ -59,8 +61,39 @@ def exposure_constraint(chunk, pad=PAD):
     return f"{ra_clause} AND {dec_clause}"
 
 
+def plot_grid(out="chunk_grid.png"):
+    """Map of chunk ids on the RA/dec plane (RA increases to the right, wrapping at 360)."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(figsize=(14, 5.5))
+    cmap = plt.get_cmap("tab20")
+    for p in patches:
+        lo, hi = p["ra_min"], (360.0 if p["ra_max"] == 0 else p["ra_max"])
+        col = p["patch_id"] // len(dec_min)
+        ax.add_patch(plt.Rectangle((lo, p["dec_min"]), hi - lo, p["dec_max"] - p["dec_min"],
+                                   facecolor=cmap(col % 20), alpha=0.5, edgecolor="k"))
+        ax.text((lo + hi) / 2, (p["dec_min"] + p["dec_max"]) / 2, str(p["patch_id"]),
+                ha="center", va="center", fontsize=13, fontweight="bold")
+    ax.set_xlim(0, 360)
+    ax.set_ylim(-90, 30)
+    ax.set_xticks(range(0, 361, step))
+    ax.set_yticks(range(-90, 31, step))
+    ax.set_xlabel("RA (deg)")
+    ax.set_ylabel("Dec (deg)")
+    ax.set_title("Processing chunks: chunk 0 = RA 300-330, dec 0..30; ids step down in dec, then east in RA")
+    ax.set_aspect("equal")
+    fig.tight_layout()
+    fig.savefig(out, dpi=150)
+    print(f"wrote {out}")
+
+
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 1 and sys.argv[1] == "--plot":
+        plot_grid(*sys.argv[2:3])
+    elif len(sys.argv) > 1:
         print(exposure_constraint(int(sys.argv[1])))
     else:
         print(f"{len(patches)} chunks, {step} deg x {step} deg")

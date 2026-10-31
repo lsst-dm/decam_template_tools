@@ -42,6 +42,7 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "$HERE"
 EXP_CONSTRAINT=$(python chunk_grid.py "$CHUNK")
 [ "$CHUNK" -lt 48 ] || echo "Warning: chunks 48-51 repeat the sky of chunks 0-3." >&2
+export EXP_CONSTRAINT
 echo "chunk ${CHUNK}: ${EXP_CONSTRAINT}"
 
 # Cut the exclude lists out of the chunk (see delve_exclude.py): the DELVE
@@ -87,6 +88,14 @@ want() { # selected in STAGES and not before START?
 # failed, so each stage is followed by an output check before the next starts.
 
 if want overscan; then
+    # Re-running a chunk resumes: skip quanta already done in its chain.
+    OVERSCAN_CHAIN="u/${USER}/DECam/endurance/overscanRaws/chunk${CHUNK}"
+    if butler query-collections "$REPO" "$OVERSCAN_CHAIN" > /dev/null 2>&1; then
+        export SKIP_EXISTING_OPT="--skip-existing-in ${OVERSCAN_CHAIN}"
+        echo "Overscan: resuming, skipping quanta already in ${OVERSCAN_CHAIN}"
+    else
+        export SKIP_EXISTING_OPT=""
+    fi
     bps submit bps_build_chunk_overscanRaws.yaml
     python check_complete.py "$REPO" "u/${OPERATOR}/DECam/endurance/overscanRaws/chunk${CHUNK}" \
         overscanRaw "$SF_WHERE" 1.0 \

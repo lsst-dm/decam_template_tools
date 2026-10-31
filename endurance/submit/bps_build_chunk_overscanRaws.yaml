@@ -76,7 +76,7 @@ site:
     monitorFilename: runinfo/monitoring.db
   task_vine:
     class: bps_parsl_sites.SlurmTaskVine
-    walltime: "04:00:00"
+    walltime: "24:00:00"
     qos: regular
     constraint: cpu
     exclusive: true

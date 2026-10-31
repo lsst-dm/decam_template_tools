@@ -131,6 +131,11 @@ site:
     constraint: cpu
     exclusive: true
     nodes_per_block: 1
+    # 8 one-node blocks, not one 8-node block: work starts when the first node
+    # is granted and the rest join the same TaskVine manager as they come up
+    # (a single 8-node block would wait for 8 free nodes at once). Keep these
+    # literal ints; bps would substitute an env var as a string, which Parsl
+    # rejects.
     provider_options:
       init_blocks: 16
       min_blocks: 0
