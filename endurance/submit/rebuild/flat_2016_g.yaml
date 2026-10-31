@@ -1,0 +1,10 @@
+includeConfigs:
+  - /global/u1/d/descdm/seanmacb/decam_template_tools/endurance/submit/bps_build_flat.yaml
+year: "2016"
+submitPath: "/pscratch/sd/d/descdm/butlersubmits/{outputRun}"  # repo symlink ./submit points at seanmacb scratch
+band: "g"
+range: "AND (day_obs > 20160000) AND (day_obs < 20170000)"
+extraQgraphOptions: "--dataset-query-constraint off --skip-existing-in u/descdm/DECam/calib/ELAIS_pilot/flat_v2/2016/g_band/20261027T102646Z"
+payload:
+  payloadName: "DECam/calib/ELAIS_pilot/flat_v2/{year}/{band}_band"
+  dataQuery: "instrument='DECam' {range} AND band='{band}' AND exposure.observation_type='dome flat' AND NOT (detector=51 AND exposure=598458) AND NOT (detector=39 AND exposure=588492)"

@@ -1,0 +1,9 @@
+includeConfigs:
+  - /global/u1/d/descdm/seanmacb/decam_template_tools/endurance/submit/bps_build_bias.yaml
+year: "2024"
+submitPath: "/pscratch/sd/d/descdm/butlersubmits/{outputRun}"  # repo symlink ./submit points at seanmacb scratch
+range: "AND (day_obs > 20240000) AND (day_obs < 20250000)"
+payload:
+  payloadName: "DECam/calib/ELAIS_pilot/bias_v2/{year}"
+  # 1275502: named preflats-BIAS but a blank readout (overscan ~0, no noise)
+  dataQuery: "instrument='DECam' {range} AND exposure.observation_type='zero' AND exposure.target_name IN ('preflats-BIAS','postflats-BIAS','postnight-BIAS') AND exposure NOT IN (558294,581640,558395,1275502)"

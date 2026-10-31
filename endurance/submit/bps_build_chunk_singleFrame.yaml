@@ -2,11 +2,13 @@
 # Run by run_chunk.sh after the overscan job; bps_build_chunk_template.yaml
 # builds the templates from this job's outputs.
 
-# Set by run_chunk.sh (CHUNK, EXP_CONSTRAINT); sky window comes from chunk_grid.py.
+# Set by run_chunk.sh (CHUNK, DET_CONSTRAINT): the sky window from chunk_grid.py
+# minus the exposures and CCDs on the exclude lists, DELVE and corrupt raws
+# (delve_exclude.py).
 chunk: ${CHUNK}
-expConstraint: "${EXP_CONSTRAINT}"
+detConstraint: "${DET_CONSTRAINT}"
 # Chain written by the overscan job (bps_build_chunk_overscanRaws.yaml).
-overscanRawColl: "u/${USER}/DECam/endurance/overscanRaws/chunk{chunk}"
+overscanRawColl: "u/{operator}/DECam/endurance/overscanRaws/chunk{chunk}"
 
 # Only the singleFrame subset of QuickTemplate.yaml (isr, calibrateImage).
 pipelineYaml: "$AP_PIPE_DIR/pipelines/DECam/QuickTemplate.yaml#singleFrame"
@@ -14,6 +16,8 @@ pipelineYaml: "$AP_PIPE_DIR/pipelines/DECam/QuickTemplate.yaml#singleFrame"
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
 project: "DECam_Templates"
 campaign: "chunk{chunk}_SingleFrame"
+# Submit dir in the operator's own scratch; see bps_build_chunk_overscanRaws.yaml.
+submitPath: ${PSCRATCH}/endurance_submit/{outputRun}
 
 payload:
   # bps makes u/{operator}/{payloadName} a CHAINED collection of this run plus
@@ -23,7 +27,9 @@ payload:
   # refcats/DM-49042/... holds the_monster_20250219 shards for calibrateImage.
   # No skymaps: nothing in this subset has a tract or patch dimension.
   inCollection: DECam/raw/all,DECam/calib/curated,{overscanRawColl},DECam/calib/bias,DECam/calib/flat,DECam/calib/fringe,refcats/DM-49042/the_monster_20250219
-  dataQuery: "instrument='DECam' AND exposure.observation_type='science' AND detector NOT IN (61,31) AND (detector!=2 AND exposure.day_obs<20160000) AND {expConstraint}"
+  # All dates; detector 2 (S30) is cut before 2016-12-29, when it began working
+  # again. Keep in sync with SF_WHERE in run_chunk.sh.
+  dataQuery: "instrument='DECam' AND exposure.observation_type='science' AND detector NOT IN (61,31) AND NOT (detector=2 AND exposure.day_obs<20161229) AND {detConstraint}"
 
 # obs_decam/config/calibrateImage.py already points both refcats at the monster
 # for this instrument, but pin it here so a stack update can't silently move us
@@ -35,8 +41,14 @@ payload:
 # that died before writing metadata is NOT skipped, so the failed calibrateImage
 # is still regenerated. Update the run name on each resume; drop the line for a
 # from-scratch build.
+#
+# isr takes its crosstalk sources from the overscan job's overscanRaw, as
+# $CP_PIPE_DIR/pipelines/DECam/cpFlat.yaml does; IsrTask's default name,
+# isrOverscanCorrected, matches nothing here, and since the connection is
+# optional isr would silently skip inter-CCD crosstalk.
 extraQgraphOptions: >-
   --dataset-query-constraint off
+  -c isr:connections.crosstalkSources=overscanRaw
   -c calibrateImage:connections.astrometry_ref_cat=the_monster_20250219
   -c calibrateImage:connections.photometry_ref_cat=the_monster_20250219
 
@@ -64,12 +76,15 @@ cluster:
     partitionMaxClusters: 1000
 
 # Memory is looked up by job name, so a clustered task needs the value on its
-# cluster label; the bare task label is kept for the unclustered case.
+# cluster label; the bare task label is kept for the unclustered case. TaskVine
+# packs jobs onto the 480 GB worker by this request, so it sets how many run at
+# once: the pilot's isr+calibrateImage peaked at 1.3 GB, and 3 GB lets ~160 run
+# instead of the 60 an 8 GB request allowed.
 pipetask:
   single_frame:
-    requestMemory: 8000
+    requestMemory: 3000
   isr:
-    requestMemory: 8000
+    requestMemory: 3000
 
 computeSite: "task_vine"
 wmsServiceClass: lsst.ctrl.bps.parsl.ParslService
@@ -94,9 +109,11 @@ site:
     large_walltime: 40.0
     monitorEnable: true
     monitorFilename: runinfo/monitoring.db
+  # A chunk is ~231k isr+calibrateImage pairs at ~37 s each (pilot), ~2.4k
+  # task-hours: about 2.5 h on 8 nodes, against ~40 h on one.
   task_vine:
     class: bps_parsl_sites.SlurmTaskVine
-    walltime: "24:00:00"
+    walltime: "06:00:00"
     qos: regular
     constraint: cpu
     exclusive: true

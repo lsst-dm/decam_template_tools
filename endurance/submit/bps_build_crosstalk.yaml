@@ -13,7 +13,7 @@ campaign: "Crosstalk_step2"
 payload:
   payloadName: "DECam/calib/ELAIS_pilot/crosstalkSolutions"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
-  inCollection: DECam/raw/all,DECam/calib,DECam/calib/ELAIS_pilot/bias,u/seanmacb/DECam/calib/ELAIS_pilot/crosstalk/20260830T141946Z # Last collection here has the cpCrosstalkIsrExps from step 1
+  inCollection: DECam/raw/all,DECam/calib/curated,DECam/calib/bias,DECam/calib/flat,u/seanmacb/DECam/calib/ELAIS_pilot/crosstalk/20260830T141946Z # Last collection here has the cpCrosstalkIsrExps from step 1
   dataQuery: "instrument='DECam' AND exposure.observation_type IN ('dome flat','science') AND detector IN (16,54)"
 
 extraQgraphOptions: "--dataset-query-constraint off"
