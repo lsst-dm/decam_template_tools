@@ -9,6 +9,9 @@
 # Needs the LSST stack set up (see ~/startup_desc_commands.sh). bps submit dirs
 # go to $PSCRATCH/endurance_submit/<run>, set as submitPath in each yaml.
 #
+# Launch it through run-chunk-job.sh (sbatch) rather than on a login node: a
+# chunk's quantum graphs need more than the 30 GiB a login node allows a user.
+#
 # Each stage's bps job writes u/<operator>/<payloadName>, a CHAINED collection of its
 # run plus its inputs, and the next stage reads from that chain:
 #   overscanRaws/chunkN -> singleFrame/chunkN -> template/chunkN

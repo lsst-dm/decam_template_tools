@@ -1,5 +1,5 @@
-# Stage 3 of 3: everything downstream of single-frame processing (visit
-# summaries, warps, template coadds, metrics) for one sky chunk. Run by
+# Stage 3 of 3: everything between single-frame processing and the template
+# coadds (visit summaries, warps, template coadds) for one sky chunk. Run by
 # run_chunk.sh after bps_build_chunk_singleFrame.yaml.
 
 # Set by run_chunk.sh (CHUNK, DET_CONSTRAINT): the sky window from chunk_grid.py
@@ -10,9 +10,12 @@ detConstraint: "${DET_CONSTRAINT}"
 # Chain written by the single-frame job (bps_build_chunk_singleFrame.yaml).
 singleFrameColl: "u/{operator}/DECam/endurance/singleFrame/chunk{chunk}"
 
-# The makeTemplate and makeMetrics subsets of QuickTemplate.yaml: everything
-# except isr and calibrateImage, which the single-frame job already ran.
-pipelineYaml: "$AP_PIPE_DIR/pipelines/DECam/QuickTemplate.yaml#makeTemplate,makeMetrics"
+# Only the tasks that lead to template_coadd, as task labels rather than the
+# makeTemplate and makeMetrics subsets of QuickTemplate.yaml: those also build
+# assembleCellCoadd, the binned and whole-tract images and the depth and mask
+# metrics, ~342k of a chunk 0's 1.98M quanta that template_coadd doesn't need.
+# isr and calibrateImage are left out too; the single-frame job already ran them.
+pipelineYaml: "$AP_PIPE_DIR/pipelines/DECam/QuickTemplate.yaml#consolidateVisitSummary,selectTemplateCoaddVisits,makeDirectWarp,makePsfMatchedWarp,assembleTemplateCoadd"
 
 # Just names, but UPDATE THIS AND KEEP THEM SHORT
 project: "DECam_Templates"
@@ -42,6 +45,7 @@ payload:
 # comes from the operator's own checkout; another user's home may be unreadable.
 extraQgraphOptions: >-
   --dataset-query-constraint off
+  --skip-existing-in u/descdm/DECam/endurance/template/chunk0/20261101T200346Z
   -t lsst.pipe.tasks.selectImages.BestSeeingSelectVisitsTask:selectTemplateCoaddVisits
   -c selectTemplateCoaddVisits:connections.visitSummaries=preliminary_visit_summary
   -c selectTemplateCoaddVisits:connections.goodVisits=template_coadd_visit_selection
@@ -51,10 +55,10 @@ extraQgraphOptions: >-
 
 # Clusters follow the drp_pipe prescription
 # ($DRP_PIPE_DIR/bps/clustering/LSSTComCam/DRP-clustering.yaml), reduced to the
-# post-single-frame tasks QuickTemplate.yaml actually contains. Each cluster
+# post-single-frame tasks this pipeline actually contains. Each cluster
 # groups a producer with the consumer that reads its output, so the
-# intermediate never leaves the node. Tasks not listed here (consolidateVisitSummary, the whole-sky plots,
-# coaddDepth metrics) are cheap and fall back to one quantum per job.
+# intermediate never leaves the node. consolidateVisitSummary isn't listed:
+# it is cheap and falls back to one quantum per job.
 clusterAlgorithm: lsst.ctrl.bps.quantum_clustering_funcs.dimension_clustering
 cluster:
   # makePsfMatchedWarp only ever reads the direct warp makeDirectWarp produced
@@ -71,18 +75,6 @@ cluster:
   patch_template_coadd:
     pipetasks: selectTemplateCoaddVisits,assembleTemplateCoadd
     dimensions: tract,patch,band
-
-  # Per-patch binned images, gathered one job per tract so the many small
-  # quanta don't each pay job startup.
-  binned_coadd_images:
-    pipetasks: makeBinnedTemplateCoaddImage,makeBinnedTemplateCoaddNImage
-    dimensions: tract,band
-
-  # Tract-level aggregation and the whole-tract mosaics built from the binned
-  # images above.
-  tract_metrics:
-    pipetasks: makeTemplateCoaddInputSummaryTract,aggregateTemplateCoaddMaskFractions,makeWholeTractTemplateCoaddImage,makeWholeTractTemplateCoaddNImage
-    dimensions: tract,band
 
 # Memory is looked up by job name, so a clustered task needs the value on its
 # cluster label; the bare task labels are kept for the unclustered case.
