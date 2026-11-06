@@ -1,0 +1,9 @@
+includeConfigs:
+  - /global/u1/d/descdm/seanmacb/decam_template_tools/endurance/submit/bps_build_flat.yaml
+year: "2023"
+submitPath: "/pscratch/sd/d/descdm/butlersubmits/{outputRun}"  # repo symlink ./submit points at seanmacb scratch
+band: "z"
+range: "AND (day_obs > 20230000) AND (day_obs < 20240000)"
+payload:
+  payloadName: "DECam/calib/ELAIS_pilot/flat_v2/{year}/{band}_band"
+  dataQuery: "instrument='DECam' {range} AND band='{band}' AND exposure.observation_type='dome flat' AND NOT (detector=51 AND exposure=598458)"

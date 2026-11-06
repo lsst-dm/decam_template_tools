@@ -1,4 +1,4 @@
-band: "r" # Options: g, r, i, and z
+band: "g" # Options: g, r, i, and z
 
 # UPDATE THIS to the path to the pipeline to run
 pipelineYaml: "$AP_PIPE_DIR/pipelines/DECam/QuickTemplate.yaml"
@@ -13,7 +13,7 @@ payload:
   # skymaps holds skyMap/decam_rings_v1, which every warp and coadd task needs;
   # refcats/DM-49042/... holds the_monster_20250219 shards for calibrateImage.
   inCollection: DECam/raw/all,DECam/calib/curated,u/seanmacb/DECam/calib/pilot/overscanRaws,DECam/calib/bias,DECam/calib/flat,DECam/calib/fringe,skymaps,refcats/DM-49042/the_monster_20250219
-  dataQuery: "instrument='DECam' AND band='{band}' AND exposure.observation_type='science' AND detector NOT IN (61,31) AND (detector!=2 AND exposure.day_obs<20160000) AND skymap='lsst_cells_v2'"
+  dataQuery: "instrument='DECam' AND band='{band}' AND exposure.observation_type='science' AND detector NOT IN (61,31) AND NOT (detector=2 AND exposure.day_obs<20161229) AND skymap='lsst_cells_v2'"
 
 # obs_decam/config/calibrateImage.py already points both refcats at the monster
 # for this instrument, but pin it here so a stack update can't silently move us
@@ -146,5 +146,8 @@ site:
       #SBATCH --module=cvmfs
       #SBATCH --account=m1727
     worker_options: "--memory=480000"  # total memory in MB
-    monitorEnable: true
-    monitorFilename: runinfo/monitoring.db
+    # Parsl resource monitoring wrote a single shared sqlite file under $HOME
+    # (runinfo/ is relative to the submit dir) that grew to 20 GB and blew the
+    # 40 GiB home quota mid-run. To re-enable, set monitorFilename to an absolute
+    # path on pscratch, never a relative path.
+    monitorEnable: false

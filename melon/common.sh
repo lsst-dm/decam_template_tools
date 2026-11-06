@@ -9,7 +9,7 @@
 # Environment overrides (defaults in brackets):
 #   BUTLER_PARENT   directory that holds the new butler repo     [<melon>/pilot]
 #   SOURCE_REPO     repo to copy datasets from (NERSC)           [decam]
-#   COLLECTIONS     run collection(s) to transfer                [<CHAIN>/template]
+#   COLLECTIONS     collection(s) to transfer from               [<CHAIN>]
 #   DATASET_TYPE    dataset type to transfer                     [template_coadd]
 #   WHERE           data ID constraint                           [skymap='lsst_cells_v2']
 #   INSTRUMENT      instrument class to register                 [lsst.obs.decam.DarkEnergyCamera]
@@ -33,6 +33,17 @@ melon_die() { echo "ERROR: $*" >&2; exit 1; }
 melon_require_butler() {
     command -v butler >/dev/null 2>&1 \
         || melon_die "'butler' not on PATH; set up the LSST stack first (e.g. source loadLSST.bash; setup lsst_distrib)."
+}
+
+# Usage: melon_repo_runs <repo>   -> comma-separated RUN collections in <repo>.
+# transfer-datasets copies datasets into the runs they live in and never creates the
+# chain they were found through, so the sqlite butler, and main after step 5, don't
+# know COLLECTIONS when that is a chain. Read them by these run names instead.
+melon_repo_runs() {
+    local runs
+    runs=$(butler query-collections "$1" --collection-type RUN | awk 'NR>2{print $1}' | paste -sd,)
+    [[ -n "$runs" ]] || melon_die "no RUN collections in $1."
+    echo "$runs"
 }
 
 # Usage: melon_parse_args "$@"   -> sets CHAIN, NAME, REPO, COLLECTIONS

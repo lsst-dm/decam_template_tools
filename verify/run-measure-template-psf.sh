@@ -30,7 +30,7 @@ LOGFILE=$LOGDIR/templatePsf-$WEEKLY.log
 date | tee $LOGFILE
 python /global/homes/s/seanmacb/decam_template_tools/verify/measure_template_psf.py \
 --repo $REPO \
---collection u/seanmacb/DECam/calib/ELAIS_pilot_w40/template/bestSeeing_1_8 \
+--collection u/seanmacb/DECam/calib/ELAIS_pilot_w40/template/bestSeeing_1_5 \
 --output-dir $OUTDIR --workers 8\
 "$@" \
 2>&1 | tee -a $LOGFILE
