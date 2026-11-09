@@ -9,7 +9,7 @@
 # Environment overrides (defaults in brackets):
 #   BUTLER_PARENT   directory that holds the new butler repo     [<melon>/pilot]
 #   SOURCE_REPO     repo to copy datasets from (NERSC)           [decam]
-#   COLLECTIONS     run collection(s) to transfer                [<CHAIN>/template]
+#   COLLECTIONS     collection(s) to transfer                    [<CHAIN>; step 5: '*' = every RUN in the sqlite butler]
 #   DATASET_TYPE    dataset type to transfer                     [template_coadd]
 #   WHERE           data ID constraint                           [skymap='lsst_cells_v2']
 #   INSTRUMENT      instrument class to register                 [lsst.obs.decam.DarkEnergyCamera]
