@@ -14,10 +14,11 @@ import sys
 import numpy as np
 
 step = 30
-RA_START = 300  # left edge of the first RA column
+# RA where chunk 0 starts. The existing u/<operator>/DECam/endurance/*/chunk0
+# collections were built for RA 300-330, so moving this renumbers them.
+ra0 = 300
 
-ra_min = (RA_START + step * np.arange(360 // step)) % 360
-ra_max = (ra_min + step) % 360  # 0 for the 330-360 column
+ra_min, ra_max = np.arange(ra0, 360 + ra0 + 1, step=step) % 360, np.arange(ra0 + step, 360 + ra0 + 1 + step, step=step) % 360
 dec_min, dec_max = np.arange(30 - step, -61 - step, step=-step), np.arange(30, -61, step=-step)
 
 ras, decs = np.array([ra_min, ra_max]).T, np.array([dec_min, dec_max]).T

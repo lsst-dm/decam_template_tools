@@ -14,8 +14,11 @@ campaign: "{year}_Fringe"
 payload:
   payloadName: "DECam/calib/ELAIS_pilot/fringe/{year}"
   butlerConfig: /global/cfs/cdirs/lsst/production/gen3/rubin/decam/repo/butler.yaml
-  inCollection: DECam/raw/all,DECam/calib/curated,u/seanmacb/DECam/calib/pilot/overscanRaws,DECam/calib/ELAIS_pilot/bias,DECam/calib/flat
-  dataQuery: "instrument='DECam' {range} AND band='{band}'"
+  inCollection: DECam/raw/all,DECam/calib/curated,u/seanmacb/DECam/calib/pilot/overscanRaws,DECam/calib/bias,DECam/calib/flat
+  # Fringes come from night-sky lines; dome flats carry none and dilute the template.
+  # Detector 2 (S30) is cut before 2016-12-29, when it began working again
+  # (NOIRLab DECam Known Problems), matching the bps_build_chunk_*.yaml queries.
+  dataQuery: "instrument='DECam' {range} AND band='{band}' AND exposure.observation_type='science' AND NOT (detector=2 AND day_obs<20161229)"
 
 extraQgraphOptions: "--dataset-query-constraint off"
 

@@ -65,13 +65,14 @@ count() {  # count <repo>: number of matching datasets (query-datasets prints a 
 n_src="$(count "$REPO")"
 echo "Lines of query-datasets output in sqlite butler ($REPO): $n_src"
 
+
 if [[ "${DRY_RUN:-0}" == 1 ]]; then
     echo "DRY_RUN=1: not transferring to $MAIN_REPO."
     exit 0
 fi
 
 butler transfer-datasets \
-    --collections "$COLLECTIONS" \
+    --collections "$RUNS" \
     --where "$WHERE" \
     -d "$DATASET_TYPE" \
     --register-dataset-types \
@@ -82,3 +83,4 @@ butler transfer-datasets \
 n_main="$(count "$MAIN_REPO")"
 echo "Lines of query-datasets output in $MAIN_REPO: $n_main"
 echo "(The two counts should match; the 'main' count includes only these collections.)"
+

@@ -35,6 +35,17 @@ melon_require_butler() {
         || melon_die "'butler' not on PATH; set up the LSST stack first (e.g. source loadLSST.bash; setup lsst_distrib)."
 }
 
+# Usage: melon_repo_runs <repo>   -> comma-separated RUN collections in <repo>.
+# transfer-datasets copies datasets into the runs they live in and never creates the
+# chain they were found through, so the sqlite butler, and main after step 5, don't
+# know COLLECTIONS when that is a chain. Read them by these run names instead.
+melon_repo_runs() {
+    local runs
+    runs=$(butler query-collections "$1" --collection-type RUN | awk 'NR>2{print $1}' | paste -sd,)
+    [[ -n "$runs" ]] || melon_die "no RUN collections in $1."
+    echo "$runs"
+}
+
 # Usage: melon_parse_args "$@"   -> sets CHAIN, NAME, REPO, COLLECTIONS
 melon_parse_args() {
     CHAIN="${1:-}"

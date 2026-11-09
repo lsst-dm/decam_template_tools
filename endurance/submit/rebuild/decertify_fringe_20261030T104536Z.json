@@ -1,0 +1,19 @@
+{
+ "dataset_type": "fringe",
+ "items": [
+  {
+   "year": "2014",
+   "band": null,
+   "new_runs": [],
+   "new_ids": [],
+   "old_ids": [
+    "01a184b6-c1e3-73a8-9381-ed1ebb1caf55"
+   ],
+   "old_runs": [
+    "u/descdm/DECam/calib/ELAIS_pilot/fringe_v2/2014/20261028T225158Z"
+   ],
+   "begin": "2014-01-01T00:00:00.000000",
+   "end": "2015-01-01T00:00:00.000000"
+  }
+ ]
+}

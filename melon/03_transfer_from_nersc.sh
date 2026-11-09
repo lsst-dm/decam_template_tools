@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Step 3: copy the run collection's datasets from the NERSC decam repo into the sqlite butler.
+# Step 3: copy the collection's datasets from the NERSC decam repo into the sqlite butler.
 #   ./03_transfer_from_nersc.sh u/seanmacb/DECam/calib/ELAIS_pilot_w40 [short-name]
-# Transfers <chain>/template by default; override with COLLECTIONS=...
+# Transfers from the whole chain by default; override with COLLECTIONS=...
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 melon_parse_args "$@"
 melon_require_butler

@@ -1,0 +1,11 @@
+includeConfigs:
+  - /global/u1/d/descdm/seanmacb/decam_template_tools/endurance/submit/bps_build_flat.yaml
+year: "2021"
+submitPath: "/pscratch/sd/d/descdm/butlersubmits/{outputRun}"  # repo symlink ./submit points at seanmacb scratch
+band: "r"
+range: "AND (day_obs > 20210000) AND (day_obs < 20220000)"
+# truncated raw (995670, det 47) failed cpFlatIsr in the first build; skip the 7501 ISR/measure quanta that succeeded
+extraQgraphOptions: "--dataset-query-constraint off --skip-existing-in u/descdm/DECam/calib/ELAIS_pilot/flat_v2/2021/r_band/20261030T103603Z"
+payload:
+  payloadName: "DECam/calib/ELAIS_pilot/flat_v2/{year}/{band}_band"
+  dataQuery: "instrument='DECam' {range} AND band='{band}' AND exposure.observation_type='dome flat' AND NOT (detector=51 AND exposure=598458) AND NOT (detector=47 AND exposure=995670)"

@@ -1,0 +1,10 @@
+includeConfigs:
+  - /global/u1/d/descdm/seanmacb/decam_template_tools/endurance/submit/bps_build_flat.yaml
+year: "2025"
+submitPath: "/pscratch/sd/d/descdm/butlersubmits/{outputRun}"  # repo symlink ./submit points at seanmacb scratch
+band: "z"
+range: "AND (day_obs > 20250000) AND (day_obs < 20260000)"
+# 1439835-1439840: dark (~3 ADU) z flats taken with VSUB off on 2025-12-10
+payload:
+  payloadName: "DECam/calib/ELAIS_pilot/flat_v2/{year}/{band}_band"
+  dataQuery: "instrument='DECam' {range} AND band='{band}' AND exposure.observation_type='dome flat' AND NOT (detector=51 AND exposure=598458) AND exposure NOT IN (1439835,1439836,1439837,1439838,1439839,1439840)"

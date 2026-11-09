@@ -9,20 +9,32 @@ plotting.
 
 Each worker is a freshly spawned process with its own Butler (never a forked copy
 of a parent's open Postgres connection), reads only the mask/psf/wcs/coaddInputs
-components of each coadd, and keeps its own cache of preliminary_visit_summary
-tables. Patches are dispatched in contiguous (tract, band, patch)-sorted chunks so
-neighbouring patches, which share most input visits, tend to land on the same
-worker and hit its cache. Note each worker holds one Postgres connection.
+components of each coadd, and keeps its own cache of each visit's per-detector
+psfSigma and pixelScale from preliminary_visit_summary (not the whole table: at
+~3 MB a visit, a chunk's thousands of visits outgrew a node). Patches are
+dispatched in contiguous (tract, band, patch)-sorted chunks so neighbouring
+patches, which share most input visits, tend to land on the same worker and hit
+its cache. Note each worker holds one Postgres connection.
+
+Finished rows are appended to template_psf_partial.csv in the output directory as
+they arrive, and a rerun with the same arguments skips the patches already in it,
+so a killed job costs minutes, not the whole run. The partial file is removed once
+the two CSVs are written; pass --fresh to discard one left by different arguments.
+If a worker dies (e.g. the OOM killer) the run stops with an error instead of
+waiting forever on the lost patch.
 
 Needs the LSST stack set up (see run-measure-template-psf.sh).
 """
 
 import argparse
+import csv
 import multiprocessing as mp
 import os
 import sys
 import time
 import zlib
+from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 
 import numpy as np
 import pandas as pd
@@ -30,6 +42,15 @@ import pandas as pd
 GAUSSIAN_SIGMA_TO_FWHM = 2.3548200450309493  # 2 * sqrt(2 * ln(2))
 
 _worker = {}
+
+ROW_DEFAULTS = dict(
+    template_psf_fwhm_median=np.nan, template_psf_fwhm_std=np.nan,
+    n_psf_samples=0, coverage_frac=0.0,
+    n_inputs=0, input_psf_fwhm_weighted_median=np.nan,
+    input_psf_fwhm_min=np.nan, input_psf_fwhm_max=np.nan,
+    error="",
+)
+PARTIAL_NAME = "template_psf_partial.csv"
 
 
 def _init_worker(repo, collection, visit_summary_dataset_type, n_samples, seed):
@@ -44,6 +65,7 @@ def _init_worker(repo, collection, visit_summary_dataset_type, n_samples, seed):
 
 
 def _get_visit_summary(visit):
+    """{detector: (psfSigma, pixelScale)} for the visit, or None without a summary."""
     cache = _worker["visit_cache"]
     if visit not in cache:
         butler = _worker["butler"]
@@ -51,7 +73,15 @@ def _get_visit_summary(visit):
             _worker["visit_summary_dataset_type"],
             collections=[_worker["collection"]], visit=visit,
         ))
-        cache[visit] = butler.get(vrefs[0]) if vrefs else None
+        if vrefs:
+            summary = butler.get(vrefs[0])
+            # id == detector number. Keep only these columns: the full table is ~3 MB.
+            cache[visit] = {
+                int(det): (float(sigma), float(scale)) for det, sigma, scale in zip(
+                    summary["id"], summary["psfSigma"], summary["pixelScale"])
+            }
+        else:
+            cache[visit] = None
     return cache[visit]
 
 
@@ -116,13 +146,9 @@ def _measure_input_psf(ref):
     fwhms, weights = [], []
     for row in ccds:
         summary = _get_visit_summary(int(row["visit"]))
-        if summary is None:
+        if summary is None or int(row["ccd"]) not in summary:
             continue
-        match = np.asarray(summary["id"]) == int(row["ccd"])  # id == detector number
-        if not match.any():
-            continue
-        sigma = np.asarray(summary["psfSigma"])[match][0]
-        pixel_scale = np.asarray(summary["pixelScale"])[match][0]
+        sigma, pixel_scale = summary[int(row["ccd"])]
         fwhms.append(sigma * GAUSSIAN_SIGMA_TO_FWHM * pixel_scale)
         weights.append(float(row["weight"]))
 
@@ -147,6 +173,7 @@ def _measure_input_psf(ref):
 def process_patch(ref):
     """One row for the patch; a failure is recorded in `error`, never raised."""
     row = dict(ref.dataId.mapping)
+    row.update(ROW_DEFAULTS)  # a failed patch still has every column, as the checkpoint CSV needs
     try:
         row.update(_measure_template_psf(ref))
         row.update(_measure_input_psf(ref))
@@ -188,6 +215,8 @@ def parse_args():
     p.add_argument("--chunksize", type=int, default=8,
                    help="contiguous patches handed to a worker at a time")
     p.add_argument("--output-dir", default=".")
+    p.add_argument("--fresh", action="store_true",
+                   help="discard an existing template_psf_partial.csv instead of resuming from it")
     args = p.parse_args()
     if not args.repo:
         p.error("--repo not given and $REPO is not set")
@@ -218,25 +247,59 @@ def main():
     if not refs:
         sys.exit("No matching datasets found.")
 
-    workers = max(1, min(args.workers, len(refs)))
-    print(f"{len(refs)} {args.coadd_dataset_type} patches, {workers} workers", flush=True)
+    os.makedirs(args.output_dir, exist_ok=True)
+    partial_csv = os.path.join(args.output_dir, PARTIAL_NAME)
+    fieldnames = list(refs[0].dataId.mapping) + list(ROW_DEFAULTS)
 
-    ctx = mp.get_context("spawn")
-    t_start = time.time()
     rows = []
-    with ctx.Pool(
-        processes=workers, initializer=_init_worker,
-        initargs=(args.repo, args.collection, args.visit_summary_dataset_type,
-                  args.n_sample_points, args.seed),
-    ) as pool:
-        for i, row in enumerate(pool.imap(process_patch, refs, chunksize=args.chunksize), 1):
-            rows.append(row)
-            if i % 100 == 0 or i == len(refs):
-                elapsed = time.time() - t_start
-                print(f"...{i}/{len(refs)} patches, {elapsed / 60:.1f} min elapsed, "
-                      f"ETA {elapsed / i * (len(refs) - i) / 60:.1f} min", flush=True)
+    if os.path.exists(partial_csv) and args.fresh:
+        os.remove(partial_csv)
+    if os.path.exists(partial_csv):
+        done = pd.read_csv(partial_csv)
+        done["error"] = done["error"].fillna("")
+        rows = done.to_dict("records")
+        have = {(int(r["tract"]), int(r["patch"]), str(r["band"])) for r in rows}
+        todo = [r for r in refs
+                if (int(r.dataId["tract"]), int(r.dataId["patch"]), str(r.dataId["band"]))
+                not in have]
+        print(f"Resuming from {partial_csv}: {len(rows)} patches done, {len(todo)} to go",
+              flush=True)
+    else:
+        todo = refs
 
-    print(f"Done: {len(rows)} patches in {(time.time() - t_start) / 60:.1f} min")
+    workers = max(1, min(args.workers, len(todo))) if todo else 1
+    print(f"{len(refs)} {args.coadd_dataset_type} patches, {len(todo)} to measure, "
+          f"{workers} workers", flush=True)
+
+    t_start = time.time()
+    if todo:
+        new_file = not os.path.exists(partial_csv)
+        try:
+            with open(partial_csv, "a", newline="") as fh, ProcessPoolExecutor(
+                max_workers=workers, mp_context=mp.get_context("spawn"),
+                initializer=_init_worker,
+                initargs=(args.repo, args.collection, args.visit_summary_dataset_type,
+                          args.n_sample_points, args.seed),
+            ) as pool:
+                writer = csv.DictWriter(fh, fieldnames=fieldnames)
+                if new_file:
+                    writer.writeheader()
+                for i, row in enumerate(
+                        pool.map(process_patch, todo, chunksize=args.chunksize), 1):
+                    rows.append(row)
+                    writer.writerow(row)
+                    if i % 100 == 0 or i == len(todo):
+                        fh.flush()
+                        elapsed = time.time() - t_start
+                        print(f"...{i}/{len(todo)} patches, {elapsed / 60:.1f} min elapsed, "
+                              f"ETA {elapsed / i * (len(todo) - i) / 60:.1f} min", flush=True)
+        except BrokenProcessPool:
+            sys.exit(f"A worker process died (killed for memory?) after {len(rows)} of "
+                     f"{len(refs)} patches. Progress is in {partial_csv}; rerun to resume, "
+                     "with more memory or fewer --workers.")
+
+    print(f"Done: {len(todo)} patches in {(time.time() - t_start) / 60:.1f} min "
+          f"({len(rows)} in total)")
 
     df = pd.DataFrame.from_records(rows)
     n_err = int((df["error"] != "").sum())
@@ -252,11 +315,12 @@ def main():
         .reset_index().sort_values(["band", "tract"])
     )
 
-    os.makedirs(args.output_dir, exist_ok=True)
     patch_csv = os.path.join(args.output_dir, "template_psf_per_patch.csv")
     tract_csv = os.path.join(args.output_dir, "template_psf_per_tract.csv")
     df.to_csv(patch_csv, index=False)
     tract_summary.to_csv(tract_csv, index=False)
+    if os.path.exists(partial_csv):
+        os.remove(partial_csv)
     print(f"Wrote {patch_csv} ({len(df)} rows)")
     print(f"Wrote {tract_csv} ({len(tract_summary)} rows)")
 
